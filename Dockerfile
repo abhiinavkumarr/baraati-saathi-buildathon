@@ -11,6 +11,8 @@ RUN npm run build && npm prune --omit=dev
 FROM node:24-slim
 WORKDIR /app
 ENV NODE_ENV=production PORT=8080
+# Root CAs: the AlloyDB Auth Proxy (Go) verifies Google's TLS certificates.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 # AlloyDB Auth Proxy: used when ALLOYDB_INSTANCE_URI is set (see start.sh).
 ADD https://storage.googleapis.com/alloydb-auth-proxy/v1.18.0/alloydb-auth-proxy.linux.amd64 /usr/local/bin/alloydb-auth-proxy
 COPY --from=build /app /app
