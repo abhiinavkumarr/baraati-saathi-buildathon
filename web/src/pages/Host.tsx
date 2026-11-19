@@ -84,7 +84,7 @@ export function Host({ slug }: { slug: string }) {
                     {r.status !== 'no' && <span className="badge">{r.party_size} {r.party_size === 1 ? 'person' : 'people'}</span>}
                     {r.extracted?.needs_pickup && <span className="badge ai">Pickup{r.extracted.arrival_point ? ` · ${r.extracted.arrival_point}` : ''}</span>}
                     {r.extracted?.arrival_time && <span className="badge ai">Arrives {r.extracted.arrival_date} {r.extracted.arrival_time}</span>}
-                    {r.extracted?.children ? <span className="badge ai">{r.extracted.children} kids</span> : null}
+                    {r.extracted?.children ? <span className="badge ai">{r.extracted.children} {r.extracted.children === 1 ? 'child' : 'children'}</span> : null}
                     {r.extracted?.dietary && <span className="badge ai">{r.extracted.dietary}</span>}
                   </div>
                   {r.note && <p className="note">“{r.note}”</p>}

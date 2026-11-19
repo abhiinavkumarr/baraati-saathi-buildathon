@@ -102,11 +102,12 @@ export async function generateImage(opts: {
       model,
       ...(opts.system ? { system_instruction: opts.system } : {}),
       input: opts.input,
-      response_format: { type: 'image', mime_type: 'image/png', aspect_ratio: opts.aspect_ratio ?? '9:16' },
+      // Nano Banana models only return JPEG.
+      response_format: { type: 'image', mime_type: 'image/jpeg', aspect_ratio: opts.aspect_ratio ?? '9:16' },
     } as never);
   })) as { output_image?: { data?: string; mime_type?: string } };
   if (!r.output_image?.data) throw new HttpError(502, 'No image came back. Please try again.');
-  return { data: r.output_image.data, mime_type: r.output_image.mime_type || 'image/png', model: used };
+  return { data: r.output_image.data, mime_type: r.output_image.mime_type || 'image/jpeg', model: used };
 }
 
 /** Generate a short instrumental clip (Lyria). Returns base64 audio. */

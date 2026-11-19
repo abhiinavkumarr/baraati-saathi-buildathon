@@ -37,10 +37,10 @@ if (which === 'image' || which === 'all') {
       const r = (await ai.interactions.create({
         model,
         input: 'Ornate royal Rajasthani wedding card background, jharokha arches, peacocks, maroon and gold, empty uncluttered centre panel, no text, no letters',
-        response_format: { type: 'image', mime_type: 'image/png', aspect_ratio: '9:16' },
+        response_format: { type: 'image', mime_type: 'image/jpeg', aspect_ratio: '9:16' },
       } as never)) as { output_image?: { data?: string } };
       if (!r.output_image?.data) throw new Error('no image returned');
-      writeFileSync(`.data/probe/${model}.png`, Buffer.from(r.output_image.data, 'base64'));
+      writeFileSync(`.data/probe/${model}.jpg`, Buffer.from(r.output_image.data, 'base64'));
     });
   }
 }

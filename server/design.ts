@@ -167,13 +167,15 @@ const extractSchema = {
 // Structure the guest's free-text note. On AlloyDB this is what AI.EXTRACT()
 // does in SQL; here the same extraction runs through Gemini so it also works
 // on the local database.
-async function extractNote(rsvpId: string, note: string, partySize: number) {
+async function extractNote(rsvpId: string, note: string, partySize: number, d: WeddingDraft) {
   try {
+    const schedule = d.events.map((e) => `${e.name}: ${e.date}`).join('; ');
     const extracted = await generateJson<Record<string, unknown>>({
       system:
         'You extract logistics from an Indian wedding guest\'s RSVP note (English, Hindi or Hinglish). ' +
-        'Only use what the note says; unknown values are empty strings, 0, or false.',
-      input: [{ type: 'text', text: `Party size given: ${partySize}. Note: ${note}` }],
+        'Only use what the note says; unknown values are empty strings, 0, or false. ' +
+        'Resolve partial dates ("12th", "12 tareekh", "the day before the sangeet") against the wedding schedule.',
+      input: [{ type: 'text', text: `Wedding schedule: ${schedule}. Party size given: ${partySize}. Note: ${note}` }],
       schema: extractSchema,
     });
     const db = await getDb();
@@ -202,7 +204,7 @@ designRouter.post('/weddings/:slug/rsvp', async (req, res) => {
       [name, phone, status, party, note, w.id, b.guest_token],
     );
     if (rows[0]) {
-      if (note) void extractNote(rows[0].id, note, party);
+      if (note) void extractNote(rows[0].id, note, party, w.draft);
       res.json({ guest_token: b.guest_token });
       return;
     }
@@ -213,7 +215,7 @@ designRouter.post('/weddings/:slug/rsvp', async (req, res) => {
      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
     [w.id, token, name, phone, status, party, note],
   );
-  if (note) void extractNote(rows[0].id, note, party);
+  if (note) void extractNote(rows[0].id, note, party, w.draft);
   res.status(201).json({ guest_token: token });
 });
 
