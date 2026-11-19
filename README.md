@@ -38,10 +38,25 @@ Set `DATABASE_URL` to an AlloyDB Express connection string to use AlloyDB instea
 
 ## Deploy to Cloud Run
 
+The Dockerfile builds the web app and bundles the AlloyDB Auth Proxy.
+
 ```bash
+# API key in Secret Manager, not in the command line
+printf '%s' "$GEMINI_API_KEY" | gcloud secrets create gemini-api-key --data-file=-
+
 gcloud run deploy baraati-saathi --source . --region asia-south1 \
-  --allow-unauthenticated --set-env-vars GEMINI_API_KEY=...,DATABASE_URL=...
+  --allow-unauthenticated --min-instances 1 --max-instances 1 --memory 1Gi \
+  --set-secrets GEMINI_API_KEY=gemini-api-key:latest \
+  --set-env-vars ALLOYDB_INSTANCE_URI=projects/P/locations/R/clusters/C/instances/I,ALLOYDB_PROXY_FLAGS=--public-ip,DB_USER=postgres,DB_NAME=postgres \
+  --set-secrets DB_PASSWORD=alloydb-password:latest
+
+# Seed the demo wedding and print its links
+node --import tsx scripts/seed-demo.ts https://<service-url>
 ```
+
+`/api/health` shows which database is in use. If AlloyDB can't be reached the
+app falls back to an in-container PGlite database (kept alive by
+`--min-instances 1`) and reports why.
 
 ## Privacy
 
