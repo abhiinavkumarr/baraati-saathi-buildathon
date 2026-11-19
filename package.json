@@ -1,0 +1,35 @@
+{
+  "name": "baraati-saathi",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Baraati Saathi: AI wedding card, animated invite and Hindi voice concierge for Indian weddings. Built with Gemini, Nano Banana, Lyria, AlloyDB and Cloud Run.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env --import tsx --watch server/index.ts",
+    "dev:web": "vite --config web/vite.config.ts",
+    "build": "vite build --config web/vite.config.ts",
+    "start": "node --import tsx server/index.ts",
+    "typecheck": "tsc --noEmit -p .",
+    "gcp-build": "npm run build"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.17",
+    "@google/genai": "^3.6.1",
+    "express": "^5.3.0",
+    "pg": "^8.23.1",
+    "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.8"
+  }
+}

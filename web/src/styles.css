@@ -1,0 +1,70 @@
+:root {
+  --ink: #1f1226;
+  --ink-2: #4a3c52;
+  --muted: #7a6d80;
+  --cream: #fbf7f1;
+  --surface: #f4ece3;
+  --line: #e6dccf;
+  --rose: #c8325a;
+  --gold: #c9a84c;
+  --gold-dp: #8b6914;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--cream); color: var(--ink); }
+body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+button { font: inherit; cursor: pointer; }
+.display { font-family: 'Cormorant Garamond', serif; font-weight: 600; letter-spacing: -0.5px; }
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+.eyebrow { font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: var(--gold-dp); margin: 0 0 8px; }
+.shell { max-width: 720px; margin: 0 auto; padding: 48px 16px; }
+
+.create { max-width: 1180px; margin: 0 auto; padding: 20px 16px 40px; }
+.brand { display: flex; align-items: baseline; gap: 10px; margin-bottom: 28px; }
+.wordmark { letter-spacing: 6px; font-weight: 700; }
+.wordmark b { color: var(--gold); }
+.tag { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 22px; color: var(--rose); }
+
+.choose { text-align: center; padding: 40px 0; }
+.choose h1 { font-size: clamp(36px, 6vw, 60px); margin: 0 0 12px; line-height: 1.05; }
+.choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; max-width: 760px; margin: 36px auto 0; }
+.choice { display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 26px; border-radius: 20px;
+  border: 1.5px solid var(--line); background: #fff; transition: transform .15s, border-color .15s; }
+.choice:hover { transform: translateY(-2px); border-color: var(--gold); }
+.choice .icon { font-size: 30px; }
+.choice b { font-size: 20px; }
+.choice span:last-child { color: var(--muted); }
+
+.workspace { display: grid; grid-template-columns: 1.4fr 1fr; gap: 22px; align-items: start; }
+@media (max-width: 860px) { .workspace { grid-template-columns: 1fr; } }
+
+.chat { display: flex; flex-direction: column; background: #fff; border: 1.5px solid var(--line); border-radius: 22px;
+  min-height: 70vh; max-height: 80vh; }
+.turns { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+.bubble { max-width: 82%; padding: 11px 16px; border-radius: 18px; line-height: 1.45; white-space: pre-wrap; }
+.bubble.saathi { align-self: flex-start; background: var(--surface); border-bottom-left-radius: 6px; }
+.bubble.host { align-self: flex-end; background: var(--ink); color: var(--cream); border-bottom-right-radius: 6px; }
+.bubble .files { font-size: 13px; opacity: .8; margin-bottom: 4px; }
+.typing { color: var(--muted); font-style: italic; }
+.error { color: var(--rose); margin: 0 20px 8px; font-size: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 20px 10px; }
+.chip { border: 1.5px solid var(--line); background: var(--cream); border-radius: 100px; padding: 7px 14px; font-size: 14px; }
+.chip:hover { border-color: var(--gold); }
+.composer { display: flex; gap: 8px; padding: 12px; border-top: 1.5px solid var(--line); }
+.composer input { flex: 1; min-width: 0; border: 1.5px solid var(--line); border-radius: 100px; padding: 10px 16px; font: inherit; }
+.icon-btn { border: none; background: var(--surface); border-radius: 100px; width: 44px; font-size: 18px; }
+.icon-btn.rec { background: var(--rose); color: #fff; animation: pulse 1s infinite; }
+@keyframes pulse { 50% { opacity: .6; } }
+.send { border: none; background: var(--ink); color: var(--cream); border-radius: 100px; padding: 0 20px; font-weight: 600; }
+.send:disabled { opacity: .5; }
+
+.preview { background: #fff; border: 1.5px solid var(--line); border-radius: 22px; padding: 26px; position: sticky; top: 20px; }
+.couple { font-size: 40px; margin: 0 0 6px; line-height: 1.05; }
+.amp { color: var(--gold); font-style: italic; }
+.invite-line { font-style: italic; color: var(--ink-2); }
+.events { list-style: none; padding: 0; margin: 18px 0; display: flex; flex-direction: column; gap: 10px; }
+.events li { display: flex; flex-direction: column; padding: 12px 14px; border-radius: 14px; background: var(--cream); border-left: 3px solid var(--gold); }
+.events li span { font-size: 14px; }
+.primary { width: 100%; border: none; border-radius: 100px; padding: 14px; font-weight: 700; background: var(--rose); color: #fff; }
+.primary:disabled { background: var(--line); color: var(--muted); cursor: default; }
