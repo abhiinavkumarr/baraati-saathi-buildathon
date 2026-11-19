@@ -34,7 +34,11 @@ export function Create() {
   const fileInput = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), [turns, busy]);
+  // Braces matter: newer browsers return a Promise from scrollIntoView, and
+  // React would call that as this effect's cleanup and crash the page.
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [turns, busy]);
 
   function start(m: 'card' | 'scratch') {
     setMode(m);
@@ -161,7 +165,7 @@ export function Create() {
               {turns.map((t, i) => (
                 <div key={i} className={`bubble ${t.role}`}>
                   {t.files?.length ? <div className="files">📎 {t.files.join(', ')}</div> : null}
-                  {t.text}
+                  {t.text || null}
                 </div>
               ))}
               {busy && <div className="bubble saathi typing">Saathi is reading…</div>}

@@ -45,7 +45,8 @@ button { font: inherit; cursor: pointer; }
 .bubble { max-width: 82%; padding: 11px 16px; border-radius: 18px; line-height: 1.45; white-space: pre-wrap; }
 .bubble.saathi { align-self: flex-start; background: var(--surface); border-bottom-left-radius: 6px; }
 .bubble.host { align-self: flex-end; background: var(--ink); color: var(--cream); border-bottom-right-radius: 6px; }
-.bubble .files { font-size: 13px; opacity: .8; margin-bottom: 4px; }
+.bubble .files { font-size: 13px; opacity: .8; }
+.bubble .files + * { margin-top: 4px; }
 .typing { color: var(--muted); font-style: italic; }
 .error { color: var(--rose); margin: 0 20px 8px; font-size: 14px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 20px 10px; }

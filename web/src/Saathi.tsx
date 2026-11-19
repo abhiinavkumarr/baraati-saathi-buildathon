@@ -28,7 +28,9 @@ export function Saathi({ slug, coupleNames }: { slug: string; coupleNames: strin
   const endRef = useRef<HTMLDivElement>(null);
   const guestToken = () => storage(`guest:${slug}`) ?? '';
 
-  useEffect(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), [msgs, busy]);
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' }); // never return the Promise
+  }, [msgs, busy]);
   useEffect(() => () => stopRef.current?.(), []);
 
   async function ask(q: string) {
