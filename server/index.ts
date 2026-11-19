@@ -18,6 +18,7 @@ app.get('/api/health', async (_req, res) => {
   res.json({
     ok: true,
     db: db.kind,
+    ...(db.note ? { db_note: db.note } : {}),
     gemini: Boolean(process.env.GEMINI_API_KEY),
     models: MODELS,
     skills: skillMenu().map((s) => s.name),
