@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { post, type WeddingDraft } from '../api.ts';
 import { ornamentUrl, themeFor } from '../themes.ts';
 import { fmtDate, fmtTime, storage } from '../format.ts';
+import { Saathi } from '../Saathi.tsx';
 
 export interface PublicWedding {
   slug: string;
@@ -141,6 +142,7 @@ export function Invite({ slug }: { slug: string }) {
       </section>
 
       <Rsvp slug={slug} disabled={preview} />
+      {open && <Saathi slug={slug} coupleNames={`${d.partner1_name} & ${d.partner2_name}`} />}
 
       {musicUrl && (
         <button className="music-btn" onClick={() => toggleMusic()} aria-label={playing ? 'Pause music' : 'Play music'}>

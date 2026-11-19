@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { WeddingDraft } from '../api.ts';
+import { post, type WeddingDraft } from '../api.ts';
 
 interface Rsvp {
   id: string;
@@ -98,11 +98,45 @@ export function Host({ slug }: { slug: string }) {
           <h2>Questions Saathi couldn't answer</h2>
           {open.length === 0 && <p className="muted">None yet. Saathi answers guests from your schedule and info.</p>}
           <ul className="q-list">
-            {open.map((q) => <li key={q.id}>{q.question}</li>)}
+            {open.map((q) => <QuestionRow key={q.id} slug={slug} token={token} q={q} />)}
           </ul>
+          {data.questions.some((q) => q.status === 'answered') && (
+            <p className="q-done">
+              {data.questions.filter((q) => q.status === 'answered').length} answered — Saathi now tells every guest.
+            </p>
+          )}
         </section>
       </div>
     </main>
+  );
+}
+
+function QuestionRow({ slug, token, q }: { slug: string; token: string; q: Question }) {
+  const [answer, setAnswer] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  return (
+    <li>
+      <span>{q.question}</span>
+      <form
+        className="q-answer"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          setErr('');
+          try {
+            await post(`/api/host/${slug}/questions/${q.id}/answer`, { t: token, answer });
+          } catch (x) {
+            setErr(x instanceof Error ? x.message : 'Could not save.');
+            setBusy(false);
+          }
+        }}
+      >
+        <input value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="Your answer for all guests" disabled={busy} />
+        <button disabled={busy || !answer.trim()}>Answer</button>
+      </form>
+      {err && <span className="error">{err}</span>}
+    </li>
   );
 }
 
