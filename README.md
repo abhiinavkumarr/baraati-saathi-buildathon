@@ -21,7 +21,7 @@ by [Baraati](https://baraati.co.in), a wedding app live on iOS, Android and the 
 | Gemini 3.8 Live | Real-time Hindi / English voice |
 | Nano Banana 2.1 | Card artwork and couple illustration |
 | Lyria 3 Clip | 30-second instrumental invitation music |
-| AlloyDB Express | Weddings, RSVPs, questions; `AI.EXTRACT()` on RSVP notes, vector search over info |
+| AlloyDB for PostgreSQL | Weddings, RSVPs, guest questions and generated media, reached from Cloud Run through the AlloyDB Auth Proxy |
 | Cloud Run | Hosting |
 | Agent Skills (`.agents/skills/`) | The app's agents load their instructions from these SKILL.md files |
 

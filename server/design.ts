@@ -164,9 +164,8 @@ const extractSchema = {
   required: ['adults', 'children', 'arrival_date', 'arrival_time', 'arrival_mode', 'arrival_point', 'needs_pickup', 'dietary', 'other'],
 };
 
-// Structure the guest's free-text note. On AlloyDB this is what AI.EXTRACT()
-// does in SQL; here the same extraction runs through Gemini so it also works
-// on the local database.
+// Structure the guest's free-text note with Gemini (structured output). A next
+// step is moving this into AlloyDB AI's AI.EXTRACT() so it runs in SQL.
 async function extractNote(rsvpId: string, note: string, partySize: number, d: WeddingDraft) {
   try {
     const schedule = d.events.map((e) => `${e.name}: ${e.date}`).join('; ');
