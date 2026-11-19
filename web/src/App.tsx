@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Create } from './pages/Create.tsx';
+import { Invite } from './pages/Invite.tsx';
+import { Studio } from './pages/Studio.tsx';
+import { Host } from './pages/Host.tsx';
 
 // Minimal path router; the app has only a handful of pages.
 export function navigate(path: string) {
@@ -15,16 +18,9 @@ export function App() {
     return () => window.removeEventListener('popstate', on);
   }, []);
 
-  const invite = path.match(/^\/i\/([\w-]+)/);
-  if (invite) return <Placeholder title="Invitation" note={`Animated invite for ${invite[1]} — Act 2, coming next.`} />;
+  const m = path.match(/^\/(i|studio|h)\/([\w-]+)/);
+  if (m?.[1] === 'i') return <Invite slug={m[2]} />;
+  if (m?.[1] === 'studio') return <Studio slug={m[2]} />;
+  if (m?.[1] === 'h') return <Host slug={m[2]} />;
   return <Create />;
-}
-
-function Placeholder({ title, note }: { title: string; note: string }) {
-  return (
-    <main className="shell">
-      <h1 className="display">{title}</h1>
-      <p className="muted">{note}</p>
-    </main>
-  );
 }

@@ -6,6 +6,7 @@ import { ALLOWED_MIME, HttpError, generateJson, toInputPart, type Attachment } f
 import { draftJsonSchema, missingFields, normalizeDraft, type WeddingDraft } from './wedding.ts';
 import { getDb } from './db.ts';
 import { makeSlug, makeToken } from './wedding.ts';
+import { latestAssets } from './design.ts';
 
 interface Turn {
   role: 'host' | 'saathi';
@@ -111,10 +112,11 @@ intakeRouter.post('/weddings', async (req, res) => {
 // Public read for the invitation page. Never returns host_token.
 intakeRouter.get('/weddings/:slug', async (req, res) => {
   const db = await getDb();
-  const rows = await db.query<{ slug: string; draft: WeddingDraft; style: string }>(
-    'SELECT slug, draft, style FROM weddings WHERE slug = $1',
+  const rows = await db.query<{ id: string; slug: string; draft: WeddingDraft; style: string }>(
+    'SELECT id, slug, draft, style FROM weddings WHERE slug = $1',
     [req.params.slug],
   );
   if (!rows[0]) throw new HttpError(404, 'Wedding not found.');
-  res.json(rows[0]);
+  const { id, ...pub } = rows[0];
+  res.json({ ...pub, draft: normalizeDraft(pub.draft), assets: await latestAssets(id) });
 });

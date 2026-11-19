@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { navigate } from '../App.tsx';
 import { fileToAttachment, post, type Attachment, type IntakeResponse, type WeddingDraft } from '../api.ts';
+import { fmtDate as fmtD } from '../format.ts';
 
 interface Turn {
   role: 'host' | 'saathi';
@@ -111,7 +112,7 @@ export function Create() {
       } catch {
         /* storage blocked; the host link is still shown later */
       }
-      navigate(`/i/${r.slug}`);
+      navigate(`/studio/${r.slug}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save the wedding.');
       setBusy(false);
@@ -226,8 +227,4 @@ export function Create() {
   );
 }
 
-function fmtDate(iso: string) {
-  if (!iso) return '';
-  const d = new Date(`${iso}T00:00:00`);
-  return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
-}
+const fmtDate = (iso: string) => fmtD(iso, { weekday: 'short', day: 'numeric', month: 'short' });
