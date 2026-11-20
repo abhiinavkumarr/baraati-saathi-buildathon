@@ -5,11 +5,14 @@ import { openLite, schemaSql } from '../server/db.ts';
 import {
   computeBudget,
   deletePayment,
+  deleteRunsheetItem,
   deleteTask,
   deleteVendor,
   listVendors,
+  publicRunsheet,
   seedSamplePlanning,
   updatePayment,
+  updateRunsheetItem,
   updateTask,
   updateVendor,
   urgency,
@@ -125,4 +128,41 @@ test('seedSamplePlanning populates 12 vendors, 10 budget lines, 8 payments, 14 t
   assert.equal(Number(tc.n), 14);
   assert.equal(Number(sc.n), 1);
   assert.equal(Number(phones.n), 0);
+});
+
+test('runsheet_items scoping and publicRunsheet visibility', async () => {
+  const [r1] = await db.query<{ id: string }>(
+    `INSERT INTO runsheet_items (wedding_id, date, start_time, title, place, show_to_guests)
+     VALUES ($1, '2027-02-20', '16:00', 'Guest shuttle departs', 'Lobby', true) RETURNING id`,
+    [wA.id],
+  );
+  const [r2] = await db.query<{ id: string }>(
+    `INSERT INTO runsheet_items (wedding_id, date, start_time, title, place, show_to_guests)
+     VALUES ($1, '2027-02-20', '14:00', 'Internal vendor load-in', 'Back gate', false) RETURNING id`,
+    [wA.id],
+  );
+
+  // publicRunsheet only exposes show_to_guests=true items for that wedding
+  const pubA = await publicRunsheet(db, wA.id);
+  assert.equal(pubA.length, 1);
+  assert.equal(pubA[0].title, 'Guest shuttle departs');
+  assert.equal((await publicRunsheet(db, wB.id)).length, 0);
+
+  // Wedding B cannot patch or delete wedding A's runsheet item
+  await assert.rejects(
+    () => updateRunsheetItem(db, wB.id, r1.id, { title: 'Hacked' }),
+    (e: unknown) => e instanceof HttpError && e.status === 404,
+  );
+  await assert.rejects(
+    () => deleteRunsheetItem(db, wB.id, r1.id),
+    (e: unknown) => e instanceof HttpError && e.status === 404,
+  );
+
+  await updateRunsheetItem(db, wA.id, r2.id, { show_to_guests: true });
+  const pubA2 = await publicRunsheet(db, wA.id);
+  assert.equal(pubA2.length, 2);
+  assert.equal(pubA2[0].title, 'Internal vendor load-in'); // 14:00 before 16:00
+
+  await deleteRunsheetItem(db, wA.id, r1.id);
+  await deleteRunsheetItem(db, wA.id, r2.id);
 });

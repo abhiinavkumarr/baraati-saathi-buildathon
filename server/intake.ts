@@ -9,6 +9,7 @@ import { getDb } from './db.ts';
 import { makeSlug, makeToken } from './wedding.ts';
 import { latestAssets } from './design.ts';
 import { sessionFromRequest, safeEqual } from './auth.ts';
+import { publicRunsheet } from './planning.ts';
 
 interface Turn {
   role: 'host' | 'saathi';
@@ -148,6 +149,17 @@ intakeRouter.get('/weddings/:slug', async (req, res) => {
     if (!t || !safeEqual(t, rows[0].host_token)) throw new HttpError(404, 'Wedding not found.');
   }
   const { id, slug, draft, style } = rows[0];
-  const announcements = (await recentAnnouncements(id, 3)).map(({ text_en, text_hi, created_at }) => ({ text_en, text_hi, created_at }));
-  res.json({ slug, style, draft: normalizeDraft(draft), assets: await latestAssets(id), announcements });
+  const [announcements, assets, day_schedule] = await Promise.all([
+    recentAnnouncements(id, 3),
+    latestAssets(id),
+    publicRunsheet(db, id),
+  ]);
+  res.json({
+    slug,
+    style,
+    draft: normalizeDraft(draft),
+    assets,
+    announcements: announcements.map(({ text_en, text_hi, created_at }) => ({ text_en, text_hi, created_at })),
+    day_schedule,
+  });
 });

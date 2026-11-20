@@ -9,6 +9,7 @@ export interface PublicWedding {
   draft: WeddingDraft;
   assets: { card_art?: string; couple_art?: string; music?: string; events?: Record<string, string> };
   announcements?: { text_en: string; text_hi: string | null; created_at: string }[];
+  day_schedule?: { date: string; start_time: string; end_time: string; title: string; place: string }[];
 }
 
 export function useWedding(slug: string, pollMs = 0) {
@@ -209,6 +210,29 @@ export function Invite({ slug }: { slug: string }) {
                 </article>
               );
             })}
+            {(() => {
+              const items = (w.day_schedule ?? []).filter((s) => s.date === date);
+              if (!items.length) return null;
+              return (
+                <div className="day-schedule reveal in">
+                  <p className="day-schedule-title">Day schedule</p>
+                  <ul className="day-schedule-list">
+                    {items.map((item, idx) => (
+                      <li key={item.title + idx}>
+                        <span className="ds-time">
+                          {item.start_time ? fmtTime(item.start_time) : 'TBD'}
+                          {item.end_time ? ` – ${fmtTime(item.end_time)}` : ''}
+                        </span>
+                        <div>
+                          <b>{item.title}</b>
+                          {item.place && <span className="ds-place"> · {item.place}</span>}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })()}
           </div>
         ))}
       </section>

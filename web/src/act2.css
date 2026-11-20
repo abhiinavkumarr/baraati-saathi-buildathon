@@ -148,3 +148,12 @@
 .update-card p { margin: 10px 0 6px; font-size: 17px; line-height: 1.5; color: var(--ink); }
 .update-card p[lang='hi'] { font-family: 'Tiro Devanagari Hindi', serif; font-size: 18px; }
 .update-card small { color: var(--muted); }
+
+/* Day schedule items on invitation (§5.7) */
+.day-schedule { background: var(--i-panel); color: var(--i-ink); border-radius: var(--r-md); padding: 16px 20px; margin-bottom: 16px; border-left: 4px solid var(--i-accent); box-shadow: 0 10px 28px rgba(0,0,0,.14); }
+.day-schedule-title { margin: 0 0 10px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--i-soft); }
+.day-schedule-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.day-schedule-list li { display: flex; gap: 12px; align-items: baseline; font-size: 14px; border-top: 1px solid var(--line); padding-top: 8px; }
+.day-schedule-list li:first-child { border-top: 0; padding-top: 0; }
+.ds-time { font-weight: 700; min-width: 72px; color: var(--i-ink); font-variant-numeric: tabular-nums; }
+.ds-place { color: var(--i-soft); }

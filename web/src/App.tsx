@@ -11,6 +11,7 @@ import { VendorsTab } from './pages/wedding/plan/VendorsTab.tsx';
 import { BudgetTab } from './pages/wedding/plan/BudgetTab.tsx';
 import { TasksTab } from './pages/wedding/plan/TasksTab.tsx';
 import { SheetsTab } from './pages/wedding/plan/SheetsTab.tsx';
+import { RunsheetTab } from './pages/wedding/plan/RunsheetTab.tsx';
 import { InviteTab } from './pages/wedding/app/InviteTab.tsx';
 import { RsvpsTab } from './pages/wedding/app/RsvpsTab.tsx';
 import { EventsTab } from './pages/wedding/app/EventsTab.tsx';
@@ -89,12 +90,13 @@ function RouterView() {
       else if (tab === 'budget') content = <BudgetTab slug={slug} />;
       else if (tab === 'tasks') content = <TasksTab slug={slug} />;
       else if (tab === 'sheets') content = <SheetsTab slug={slug} />;
+      else if (tab === 'runsheet') content = <RunsheetTab slug={slug} />;
       else {
         content = (
           <section className="card">
             <p className="eyebrow">Your Wedding</p>
             <h1 className="h2" style={{ margin: '0 0 8px' }}>{tab}</h1>
-            <p className="muted">Coming right up in Step 7.</p>
+            <p className="muted">Choose a planning tab above.</p>
           </section>
         );
       }

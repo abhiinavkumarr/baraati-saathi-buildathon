@@ -35,6 +35,7 @@ const GUEST_SIDES = new Set(['bride', 'groom', 'both']);
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^\d{2}:\d{2}$/;
 
 const str = (v: unknown, max = 300) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
@@ -1297,3 +1298,166 @@ planningRouter.post('/host/:slug/sheets/suggest', async (req, res) => {
   res.status(201).json({ sheet: created });
 });
 
+
+// ── P2: Run sheet (§5.7) ─────────────────────────────────────────────────────
+
+export interface PublicRunsheetItem {
+  date: string;
+  start_time: string;
+  end_time: string;
+  title: string;
+  place: string;
+}
+
+export async function publicRunsheet(db: Db, weddingId: string): Promise<PublicRunsheetItem[]> {
+  const rows = await db.query<{
+    date: string | Date;
+    start_time: string | null;
+    end_time: string | null;
+    title: string;
+    place: string | null;
+  }>(
+    `SELECT date, start_time, end_time, title, place
+       FROM runsheet_items
+      WHERE wedding_id = $1 AND show_to_guests = true
+      ORDER BY date, start_time NULLS LAST, created_at`,
+    [weddingId],
+  );
+  return rows.map((r) => ({
+    date: toDateStr(r.date) ?? '',
+    start_time: r.start_time ?? '',
+    end_time: r.end_time ?? '',
+    title: r.title,
+    place: r.place ?? '',
+  })).filter((r) => r.date);
+}
+
+export async function updateRunsheetItem(db: Db, weddingId: string, id: string, body: Record<string, unknown>) {
+  if (!UUID_RE.test(id)) throw new HttpError(404, 'Run sheet item not found.');
+  const existing = await db.query<{ id: string }>('SELECT id FROM runsheet_items WHERE id = $1 AND wedding_id = $2', [id, weddingId]);
+  if (!existing[0]) throw new HttpError(404, 'Run sheet item not found.');
+
+  const sets: string[] = [];
+  const params: unknown[] = [];
+  const push = (col: string, val: unknown) => {
+    params.push(val);
+    sets.push(`${col} = $${params.length}`);
+  };
+  if (body.date !== undefined) {
+    const d = toDateStr(body.date);
+    if (!d) throw new HttpError(400, 'date must be YYYY-MM-DD.');
+    push('date', d);
+  }
+  if (body.start_time !== undefined) {
+    const st = str(body.start_time, 5);
+    if (st && !TIME_RE.test(st)) throw new HttpError(400, 'start_time must be HH:MM.');
+    push('start_time', st || null);
+  }
+  if (body.end_time !== undefined) {
+    const et = str(body.end_time, 5);
+    if (et && !TIME_RE.test(et)) throw new HttpError(400, 'end_time must be HH:MM.');
+    push('end_time', et || null);
+  }
+  if (body.title !== undefined) {
+    const t = str(body.title, 160);
+    if (!t) throw new HttpError(400, 'Title is required.');
+    push('title', t);
+  }
+  if (body.place !== undefined) push('place', str(body.place, 140) || null);
+  if (body.notes !== undefined) push('notes', str(body.notes, 500) || null);
+  if (body.show_to_guests !== undefined) push('show_to_guests', Boolean(body.show_to_guests));
+  if (body.vendor_id !== undefined) {
+    if (!body.vendor_id) {
+      push('vendor_id', null);
+    } else {
+      if (typeof body.vendor_id !== 'string' || !UUID_RE.test(body.vendor_id)) throw new HttpError(404, 'Vendor not found.');
+      const v = await db.query<{ id: string }>('SELECT id FROM vendors WHERE id = $1 AND wedding_id = $2', [body.vendor_id, weddingId]);
+      if (!v[0]) throw new HttpError(404, 'Vendor not found.');
+      push('vendor_id', v[0].id);
+    }
+  }
+  if (!sets.length) return { ok: true };
+  params.push(id, weddingId);
+  await db.query(
+    `UPDATE runsheet_items SET ${sets.join(', ')}, updated_at = now() WHERE id = $${params.length - 1} AND wedding_id = $${params.length}`,
+    params,
+  );
+  return { ok: true };
+}
+
+export async function deleteRunsheetItem(db: Db, weddingId: string, id: string) {
+  if (!UUID_RE.test(id)) throw new HttpError(404, 'Run sheet item not found.');
+  const rows = await db.query<{ id: string }>('DELETE FROM runsheet_items WHERE id = $1 AND wedding_id = $2 RETURNING id', [id, weddingId]);
+  if (!rows[0]) throw new HttpError(404, 'Run sheet item not found.');
+  return { ok: true };
+}
+
+planningRouter.get('/host/:slug/runsheet', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.query.t);
+  const db = await getDb();
+  const [rows, vendors] = await Promise.all([
+    db.query<Record<string, unknown>>(
+      `SELECT r.id, r.date, r.start_time, r.end_time, r.title, r.place, r.vendor_id, v.name AS vendor_name, r.show_to_guests, r.notes
+         FROM runsheet_items r
+         LEFT JOIN vendors v ON v.id = r.vendor_id
+        WHERE r.wedding_id = $1
+        ORDER BY r.date, r.start_time NULLS LAST, r.created_at`,
+      [w.id],
+    ),
+    db.query<{ id: string; name: string; category: string }>('SELECT id, name, category FROM vendors WHERE wedding_id = $1 ORDER BY name', [w.id]),
+  ]);
+  const items = rows.map((r) => ({
+    id: String(r.id),
+    date: toDateStr(r.date) ?? '',
+    start_time: r.start_time ? String(r.start_time) : '',
+    end_time: r.end_time ? String(r.end_time) : '',
+    title: String(r.title),
+    place: r.place ? String(r.place) : '',
+    vendor_id: r.vendor_id ? String(r.vendor_id) : null,
+    vendor_name: r.vendor_name ? String(r.vendor_name) : '',
+    show_to_guests: Boolean(r.show_to_guests),
+    notes: r.notes ? String(r.notes) : '',
+  }));
+  res.json({ items, events: w.draft.events, vendors });
+});
+
+planningRouter.post('/host/:slug/runsheet', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.body?.t);
+  const b = req.body ?? {};
+  const date = toDateStr(b.date);
+  if (!date) throw new HttpError(400, 'date must be YYYY-MM-DD.');
+  const title = str(b.title, 160);
+  if (!title) throw new HttpError(400, 'Title is required.');
+  const startTime = str(b.start_time, 5);
+  if (startTime && !TIME_RE.test(startTime)) throw new HttpError(400, 'start_time must be HH:MM.');
+  const endTime = str(b.end_time, 5);
+  if (endTime && !TIME_RE.test(endTime)) throw new HttpError(400, 'end_time must be HH:MM.');
+
+  const db = await getDb();
+  let vendorId: string | null = null;
+  if (b.vendor_id) {
+    if (typeof b.vendor_id !== 'string' || !UUID_RE.test(b.vendor_id)) throw new HttpError(404, 'Vendor not found.');
+    const v = await db.query<{ id: string }>('SELECT id FROM vendors WHERE id = $1 AND wedding_id = $2', [b.vendor_id, w.id]);
+    if (!v[0]) throw new HttpError(404, 'Vendor not found.');
+    vendorId = v[0].id;
+  }
+
+  const rows = await db.query<{ id: string }>(
+    `INSERT INTO runsheet_items (wedding_id, date, start_time, end_time, title, place, vendor_id, show_to_guests, notes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+    [w.id, date, startTime || null, endTime || null, title, str(b.place, 140) || null, vendorId, Boolean(b.show_to_guests), str(b.notes, 500) || null],
+  );
+  res.status(201).json({ id: rows[0].id });
+});
+
+planningRouter.patch('/host/:slug/runsheet/:id', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.body?.t);
+  const db = await getDb();
+  res.json(await updateRunsheetItem(db, w.id, req.params.id, req.body ?? {}));
+});
+
+planningRouter.delete('/host/:slug/runsheet/:id', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.body?.t ?? req.query.t);
+  const db = await getDb();
+  res.json(await deleteRunsheetItem(db, w.id, req.params.id));
+});
