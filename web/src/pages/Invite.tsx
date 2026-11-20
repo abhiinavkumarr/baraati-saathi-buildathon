@@ -14,10 +14,12 @@ export interface PublicWedding {
 export function useWedding(slug: string, pollMs = 0) {
   const [w, setW] = useState<PublicWedding | null>(null);
   const [error, setError] = useState('');
+  const hostT = new URLSearchParams(location.search).get('t') ?? '';
   useEffect(() => {
     let alive = true;
+    const url = `/api/weddings/${slug}${hostT ? `?t=${encodeURIComponent(hostT)}` : ''}`;
     const load = () =>
-      fetch(`/api/weddings/${slug}`)
+      fetch(url)
         .then(async (r) => {
           const j = await r.json();
           if (!r.ok) throw new Error(j.error || 'Not found');
@@ -30,7 +32,7 @@ export function useWedding(slug: string, pollMs = 0) {
       alive = false;
       if (t) clearInterval(t);
     };
-  }, [slug, pollMs]);
+  }, [slug, pollMs, hostT]);
   return { w, error };
 }
 

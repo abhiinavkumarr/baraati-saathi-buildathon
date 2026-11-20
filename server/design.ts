@@ -16,16 +16,27 @@ interface WeddingRow {
   slug: string;
   host_token: string;
   draft: WeddingDraft;
+  private: boolean;
 }
 
 async function wedding(slug: string): Promise<WeddingRow> {
   const db = await getDb();
   const rows = await db.query<WeddingRow & Record<string, unknown>>(
-    'SELECT id, slug, host_token, draft FROM weddings WHERE slug = $1',
+    'SELECT id, slug, host_token, draft, private FROM weddings WHERE slug = $1',
     [slug],
   );
   if (!rows[0]) throw new HttpError(404, 'Wedding not found.');
   return { ...rows[0], draft: normalizeDraft(rows[0].draft) };
+}
+
+async function publicWedding(slug: string, hostToken?: unknown): Promise<WeddingRow> {
+  const w = await wedding(slug);
+  if (w.private) {
+    if (typeof hostToken !== 'string' || !hostToken || !safeEqual(hostToken, w.host_token)) {
+      throw new HttpError(404, 'Wedding not found.');
+    }
+  }
+  return w;
 }
 
 async function hostWedding(slug: string, token: unknown): Promise<WeddingRow> {
@@ -397,7 +408,7 @@ async function extractRsvpLogistics(
 }
 
 designRouter.post('/weddings/:slug/rsvp', async (req, res) => {
-  const w = await wedding(req.params.slug);
+  const w = await publicWedding(req.params.slug, req.body?.t ?? req.query.t);
   const b = req.body ?? {};
   const name = typeof b.name === 'string' ? b.name.trim().slice(0, 80) : '';
   const status = ['yes', 'no', 'maybe'].includes(b.status) ? b.status : '';
@@ -444,7 +455,7 @@ designRouter.post('/weddings/:slug/rsvp', async (req, res) => {
 });
 
 designRouter.get('/weddings/:slug/my-plan', async (req, res) => {
-  const w = await wedding(req.params.slug);
+  const w = await publicWedding(req.params.slug, req.query.t);
   const guestToken = typeof req.query.guest_token === 'string' ? req.query.guest_token.slice(0, 64) : '';
   if (!guestToken) {
     res.json({ rsvp: null });

@@ -8,7 +8,7 @@ import { draftJsonSchema, missingFields, normalizeDraft, type WeddingDraft } fro
 import { getDb } from './db.ts';
 import { makeSlug, makeToken } from './wedding.ts';
 import { latestAssets } from './design.ts';
-import { sessionFromRequest } from './auth.ts';
+import { sessionFromRequest, safeEqual } from './auth.ts';
 
 interface Turn {
   role: 'host' | 'saathi';
@@ -135,14 +135,19 @@ intakeRouter.post('/weddings', async (req, res) => {
 });
 
 // Public read for the invitation page. Never returns host_token.
+// Private weddings return 404 unless the request carries the matching host token (?t=).
 intakeRouter.get('/weddings/:slug', async (req, res) => {
   const db = await getDb();
-  const rows = await db.query<{ id: string; slug: string; draft: WeddingDraft; style: string }>(
-    'SELECT id, slug, draft, style FROM weddings WHERE slug = $1',
+  const rows = await db.query<{ id: string; slug: string; host_token: string; draft: WeddingDraft; style: string; private: boolean }>(
+    'SELECT id, slug, host_token, draft, style, private FROM weddings WHERE slug = $1',
     [req.params.slug],
   );
   if (!rows[0]) throw new HttpError(404, 'Wedding not found.');
-  const { id, ...pub } = rows[0];
+  if (rows[0].private) {
+    const t = typeof req.query.t === 'string' ? req.query.t : '';
+    if (!t || !safeEqual(t, rows[0].host_token)) throw new HttpError(404, 'Wedding not found.');
+  }
+  const { id, slug, draft, style } = rows[0];
   const announcements = (await recentAnnouncements(id, 3)).map(({ text_en, text_hi, created_at }) => ({ text_en, text_hi, created_at }));
-  res.json({ ...pub, draft: normalizeDraft(pub.draft), assets: await latestAssets(id), announcements });
+  res.json({ slug, style, draft: normalizeDraft(draft), assets: await latestAssets(id), announcements });
 });

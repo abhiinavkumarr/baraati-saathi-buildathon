@@ -9,6 +9,7 @@ import { loadSkills } from './skills.ts';
 import { HttpError, MODELS, TEXT_MODELS, ai, withFallback } from './gemini.ts';
 import { normalizeDraft, type WeddingDraft } from './wedding.ts';
 import { recentAnnouncements } from './control.ts';
+import { safeEqual } from './auth.ts';
 
 export const saathiRouter = Router();
 
@@ -19,10 +20,18 @@ interface Ctx {
   guestToken: string; // '' if the guest hasn't RSVP'd on this device
 }
 
-export async function context(slug: string, guestToken: unknown): Promise<Ctx> {
+export async function context(slug: string, guestToken: unknown, hostToken?: unknown): Promise<Ctx> {
   const db = await getDb();
-  const rows = await db.query<{ id: string; draft: WeddingDraft }>('SELECT id, draft FROM weddings WHERE slug = $1', [slug]);
+  const rows = await db.query<{ id: string; draft: WeddingDraft; host_token: string; private: boolean }>(
+    'SELECT id, draft, host_token, private FROM weddings WHERE slug = $1',
+    [slug],
+  );
   if (!rows[0]) throw new HttpError(404, 'Wedding not found.');
+  if (rows[0].private) {
+    if (typeof hostToken !== 'string' || !hostToken || !safeEqual(hostToken, rows[0].host_token)) {
+      throw new HttpError(404, 'Wedding not found.');
+    }
+  }
   return {
     weddingId: rows[0].id,
     slug,
@@ -147,7 +156,7 @@ function systemFor(ctx: Ctx, mode: 'text' | 'voice', updates: string[] = []): st
 // ── Text chat ───────────────────────────────────────────────────────────────
 
 saathiRouter.post('/saathi/:slug/chat', async (req, res) => {
-  const ctx = await context(req.params.slug, req.body?.guest_token);
+  const ctx = await context(req.params.slug, req.body?.guest_token, req.body?.t ?? req.query.t);
   const message = typeof req.body?.message === 'string' ? req.body.message.trim().slice(0, 1000) : '';
   if (!message) throw new HttpError(400, 'Ask Saathi something.');
   const history = (Array.isArray(req.body?.history) ? req.body.history : [])
@@ -200,7 +209,7 @@ saathiRouter.post('/saathi/:slug/chat', async (req, res) => {
 /** Short-lived, single-use token for the browser's Live session, with the
  *  system instruction and tools locked so a visitor can't repurpose it. */
 saathiRouter.post('/saathi/:slug/live-token', async (req, res) => {
-  const ctx = await context(req.params.slug, req.body?.guest_token);
+  const ctx = await context(req.params.slug, req.body?.guest_token, req.body?.t ?? req.query.t);
   const config = {
     responseModalities: ['AUDIO'],
     systemInstruction: systemFor(ctx, 'voice', (await recentAnnouncements(ctx.weddingId, 3)).map((a) => a.text_en)),
@@ -223,7 +232,7 @@ saathiRouter.post('/saathi/:slug/live-token', async (req, res) => {
 
 /** Tool calls from the browser's Live session execute here, server-side. */
 saathiRouter.post('/saathi/:slug/tool', async (req, res) => {
-  const ctx = await context(req.params.slug, req.body?.guest_token);
+  const ctx = await context(req.params.slug, req.body?.guest_token, req.body?.t ?? req.query.t);
   const name = String(req.body?.name ?? '');
   if (!TOOL_DEFS.some((t) => t.name === name)) throw new HttpError(400, 'Unknown tool.');
   const args = req.body?.args && typeof req.body.args === 'object' ? req.body.args : {};
