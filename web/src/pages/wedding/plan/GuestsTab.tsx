@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { del, patch, post } from '../../../api.ts';
+import { del, fileToAttachment, patch, post, type Attachment } from '../../../api.ts';
 import { useWedding } from '../../../WeddingContext.tsx';
 import { fmtDate, fmtTime } from '../../../format.ts';
 
@@ -66,6 +66,13 @@ export function GuestsTab({ slug }: { slug: string }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [copiedId, setCopiedId] = useState('');
+
+  // AI guest import (§5.1)
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importImage, setImportImage] = useState<Attachment | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [previewRows, setPreviewRows] = useState<{ name: string; party_size: number; side: string; group_name: string; relation: string }[]>([]);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -232,6 +239,40 @@ export function GuestsTab({ slug }: { slug: string }) {
     });
   }
 
+  async function runImportPreview() {
+    setImportBusy(true);
+    setError('');
+    try {
+      const r = await post<{ guests: typeof previewRows }>(`/api/host/${slug}/guests/import-preview`, {
+        t: token,
+        text: importText,
+        image: importImage ?? undefined,
+      });
+      setPreviewRows(r.guests ?? []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not parse guest list.');
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
+  async function commitImport() {
+    if (!previewRows.length) return;
+    setImportBusy(true);
+    try {
+      await post(`/api/host/${slug}/guests/bulk`, { t: token, guests: previewRows });
+      setPreviewRows([]);
+      setImportText('');
+      setImportImage(null);
+      setImportOpen(false);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not import guests.');
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
   const totalHeads = filtered.filter((g) => g.status !== 'no').reduce((s, g) => s + g.party_size, 0);
 
   return (
@@ -245,10 +286,94 @@ export function GuestsTab({ slug }: { slug: string }) {
           </p>
         </div>
         <div className="pl-actions-row">
+          <button type="button" className="btn btn-outline btn-sm" onClick={() => setImportOpen((v) => !v)}>
+            ✦ Paste or snap list
+          </button>
           <button type="button" className="btn btn-outline btn-sm" onClick={exportCsv}>Export CSV</button>
           <button type="button" className="btn btn-cta btn-sm" onClick={openAdd}>+ Add guest</button>
         </div>
       </div>
+
+      {importOpen && (
+        <section className="card card-sm pl-proposal-panel">
+          <div className="pl-vc-top" style={{ marginBottom: 8 }}>
+            <div>
+              <span className="badge ai">✦ AI guest import</span>
+              <h2 className="h3" style={{ margin: '4px 0 0' }}>Paste or snap your guest list</h2>
+              <p className="muted tiny" style={{ margin: '2px 0 0' }}>Phone numbers are automatically stripped before Gemini reads the list.</p>
+            </div>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setImportOpen(false)}>Close</button>
+          </div>
+          {previewRows.length === 0 ? (
+            <div className="pl-form-stack" style={{ marginTop: 8, gap: 10 }}>
+              <textarea
+                rows={4}
+                aria-label="Paste WhatsApp or Excel guest list"
+                placeholder={'Paste lines from WhatsApp or Excel, e.g.\nSharma family (4) - Bride side\nRohan & Priya - College friends'}
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+              />
+              <div className="pl-row-btns">
+                <input
+                  type="file"
+                  accept="image/*,.csv,text/csv"
+                  aria-label="Upload photo or CSV of guest list"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    if (f.name.endsWith('.csv') || f.type === 'text/csv') {
+                      setImportText(await f.text());
+                      setImportImage(null);
+                    } else {
+                      setImportImage(await fileToAttachment(f, f.name));
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-cta btn-sm"
+                  disabled={importBusy || (!importText.trim() && !importImage)}
+                  onClick={() => void runImportPreview()}
+                >
+                  {importBusy ? 'Reading list…' : 'Preview guests →'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ marginTop: 10 }}>
+              <p className="small" style={{ margin: '0 0 8px' }}>Review and edit before adding ({previewRows.length} guests):</p>
+              <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+                <table className="pl-table">
+                  <thead>
+                    <tr><th>Name</th><th>Party</th><th>Side</th><th>Group</th><th /></tr>
+                  </thead>
+                  <tbody>
+                    {previewRows.map((row, idx) => (
+                      <tr key={idx}>
+                        <td><input type="text" className="pl-cell-input" value={row.name} onChange={(e) => setPreviewRows((p) => p.map((r, i) => (i === idx ? { ...r, name: e.target.value } : r)))} /></td>
+                        <td style={{ width: 70 }}><input type="number" min={1} max={20} className="pl-cell-input" value={row.party_size} onChange={(e) => setPreviewRows((p) => p.map((r, i) => (i === idx ? { ...r, party_size: Number(e.target.value) || 1 } : r)))} /></td>
+                        <td>
+                          <select className="pl-cell-input" value={row.side} onChange={(e) => setPreviewRows((p) => p.map((r, i) => (i === idx ? { ...r, side: e.target.value } : r)))}>
+                            <option value="">—</option><option value="bride">Bride</option><option value="groom">Groom</option><option value="both">Both</option>
+                          </select>
+                        </td>
+                        <td><input type="text" className="pl-cell-input" value={row.group_name} onChange={(e) => setPreviewRows((p) => p.map((r, i) => (i === idx ? { ...r, group_name: e.target.value } : r)))} /></td>
+                        <td><button type="button" className="btn btn-ghost btn-sm" onClick={() => setPreviewRows((p) => p.filter((_, i) => i !== idx))}>✕</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="pl-wizard-actions" style={{ marginTop: 12 }}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPreviewRows([])}>← Back</button>
+                <button type="button" className="btn btn-cta btn-sm" disabled={importBusy} onClick={() => void commitImport()}>
+                  {importBusy ? 'Adding…' : `Add ${previewRows.length} guests`}
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {error && <div className="card card-sm pl-err-box" role="alert"><span className="badge bad">Error</span><p>{error}</p></div>}
 

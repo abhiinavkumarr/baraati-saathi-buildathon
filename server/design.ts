@@ -172,6 +172,15 @@ designRouter.post('/weddings/:slug/music', async (req, res) => {
   res.json({ id });
 });
 
+designRouter.post('/weddings/:slug/teaser', async (req, res) => {
+  const w = await hostWedding(req.params.slug, req.body?.t ?? req.body?.host_token);
+  const mime = typeof req.body?.mime_type === 'string' && /^video\/(webm|mp4)/.test(req.body.mime_type) ? req.body.mime_type : 'video/webm';
+  const data = typeof req.body?.data === 'string' ? req.body.data : '';
+  if (!data || (data.length * 3) / 4 > 25 * 1024 * 1024) throw new HttpError(400, 'Teaser video is empty or too large (max 25 MB).');
+  const id = await saveAsset(w.id, 'teaser', mime, data, 'canvas-teaser', 'teaser');
+  res.status(201).json({ id, url: `/api/assets/${id}` });
+});
+
 // ── AI Studio: Logo / monogram (§7) ─────────────────────────────────────────
 
 const LOGO_STYLES: Record<string, string> = {

@@ -61,6 +61,11 @@ export function TasksTab({ slug }: { slug: string }) {
   const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [ceremonyFilter, setCeremonyFilter] = useState('all');
 
+  // AI "Make my checklist" (§5.4)
+  const [aiBusy, setAiBusy] = useState(false);
+  const [suggested, setSuggested] = useState<{ title: string; due_date: string | null; category: string; ceremony: string; priority: 'normal' | 'high' | 'critical'; checked: boolean }[]>([]);
+  const [applyingAi, setApplyingAi] = useState(false);
+
   const load = useCallback(async () => {
     if (!token) return;
     try {
@@ -123,6 +128,43 @@ export function TasksTab({ slug }: { slug: string }) {
     await load();
   }
 
+  async function suggestChecklist() {
+    setAiBusy(true);
+    setError('');
+    try {
+      const r = await post<{ tasks: { title: string; due_date: string | null; category: string; ceremony: string; priority: 'normal' | 'high' | 'critical' }[] }>(
+        `/api/host/${slug}/tasks/suggest`,
+        { t: token },
+      );
+      setSuggested((r.tasks ?? []).map((t) => ({ ...t, checked: true })));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not generate checklist.');
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  async function applySuggested() {
+    const picked = suggested.filter((t) => t.checked);
+    if (!picked.length) return;
+    setApplyingAi(true);
+    try {
+      await post(`/api/host/${slug}/apply`, {
+        t: token,
+        proposal: {
+          kind: 'tasks',
+          payload: { tasks: picked.map(({ title, due_date, category, ceremony, priority }) => ({ title, due_date, category, ceremony, priority })) },
+        },
+      });
+      setSuggested([]);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not add suggested tasks.');
+    } finally {
+      setApplyingAi(false);
+    }
+  }
+
   return (
     <div className="pl-section">
       <div className="pl-head">
@@ -133,7 +175,49 @@ export function TasksTab({ slug }: { slug: string }) {
             {tasks.filter((t) => t.status !== 'done').length} open · {tasks.filter((t) => t.urgency === 'overdue').length} overdue
           </p>
         </div>
+        <button type="button" className="btn btn-outline btn-sm" disabled={aiBusy} onClick={() => void suggestChecklist()}>
+          {aiBusy ? 'Building checklist…' : '✦ Make my checklist'}
+        </button>
       </div>
+
+      {suggested.length > 0 && (
+        <section className="card card-sm pl-proposal-panel">
+          <div className="pl-vc-top" style={{ marginBottom: 10 }}>
+            <div>
+              <span className="badge ai">✦ Saathi suggests</span>
+              <h2 className="h3" style={{ margin: '4px 0 0' }}>Dated wedding checklist ({suggested.filter((s) => s.checked).length} selected)</h2>
+            </div>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSuggested([])}>Dismiss</button>
+          </div>
+          <ul className="pl-task-list" style={{ maxHeight: 320, overflowY: 'auto' }}>
+            {suggested.map((t, i) => (
+              <li key={i}>
+                <label className="pl-task-main" style={{ cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={t.checked}
+                    onChange={(e) => setSuggested((prev) => prev.map((x, idx) => (idx === i ? { ...x, checked: e.target.checked } : x)))}
+                  />
+                  <div>
+                    <span className="pl-task-title">{t.title}</span>
+                    <div className="pl-badges-inline" style={{ marginTop: 2 }}>
+                      {t.category && <span className="badge">{t.category}</span>}
+                      {t.ceremony && <span className="badge">{t.ceremony}</span>}
+                      {t.due_date && <span className="muted tiny">{fmtDate(t.due_date, { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+                    </div>
+                  </div>
+                </label>
+              </li>
+            ))}
+          </ul>
+          <div className="pl-wizard-actions" style={{ marginTop: 12 }}>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSuggested([])}>Dismiss</button>
+            <button type="button" className="btn btn-cta btn-sm" disabled={applyingAi || !suggested.some((s) => s.checked)} onClick={() => void applySuggested()}>
+              {applyingAi ? 'Adding…' : `Add ${suggested.filter((s) => s.checked).length} tasks`}
+            </button>
+          </div>
+        </section>
+      )}
 
       {error && <div className="card card-sm pl-err-box" role="alert"><span className="badge bad">Error</span><p>{error}</p></div>}
 

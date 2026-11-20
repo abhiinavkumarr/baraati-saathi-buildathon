@@ -22,9 +22,10 @@ export const insightsRouter = Router();
 
 /** What the model is told about the data. Mirrors the temp tables below. */
 export const DATA_DICTIONARY = `
-Table guests (one row per RSVP; phone numbers are not available):
-  name text, status text ('yes' | 'no' | 'maybe'),
+Table guests (one row per RSVP/guest; phone numbers are not available):
+  name text, status text ('yes' | 'no' | 'maybe' | 'pending'),
   party_size int (total people in this RSVP, including the guest),
+  side text ('bride' | 'groom' | 'both' | NULL), group_name text, room text,
   adults int, children int (from the guest's note; NULL if unknown),
   arrival_date date, arrival_time text ('HH:MM' 24h or NULL),
   arrival_mode text ('flight' | 'train' | 'car' | 'bus' | NULL),
@@ -34,6 +35,16 @@ Table guests (one row per RSVP; phone numbers are not available):
   note text (the guest's own words), responded_at timestamptz
 Table events (the wedding's ceremonies):
   name text, date date, start_time text ('HH:MM'), venue_name text, venue_address text, dress_code text
+Table tasks (the wedding's planning checklist):
+  title text, category text, ceremony text, assignee text,
+  status text ('todo' | 'doing' | 'waiting' | 'done'),
+  priority text ('normal' | 'high' | 'critical'), due_date date, source text
+Table vendors (wedding vendors; phone and contact_name are not available):
+  id uuid, category text, name text,
+  status text ('shortlisted' | 'negotiating' | 'booked' | 'cancelled'),
+  who_pays text ('bride' | 'groom' | 'shared' | NULL), quoted numeric, notes text
+Table payments (vendor instalments; paid_at IS NULL means unpaid/due):
+  vendor_id uuid, vendor_name text, category text, label text, amount numeric, due_date date, paid_at date
 `.trim();
 
 const DENY = [
@@ -92,13 +103,14 @@ export interface QueryResult {
 export async function runScoped(db: Db, weddingId: string, draft: WeddingDraft, sql: string): Promise<QueryResult> {
   return db.sandbox(async (q) => {
     await q(`CREATE TEMP TABLE guests (
-      name text, status text, party_size int, adults int, children int,
+      name text, status text, party_size int, side text, group_name text, room text,
+      adults int, children int,
       arrival_date date, arrival_time text, arrival_mode text, arrival_point text,
       flight_or_train text, ticket_passengers int,
       needs_pickup boolean, dietary text, note text, responded_at timestamptz) ON COMMIT DROP`);
     await q(
       `INSERT INTO guests
-       SELECT name, status, party_size,
+       SELECT name, status, party_size, NULLIF(side, ''), NULLIF(group_name, ''), NULLIF(room, ''),
               CASE WHEN extracted->>'adults' ~ '^[0-9]+$' AND (extracted->>'adults')::int > 0 THEN (extracted->>'adults')::int END,
               CASE WHEN extracted->>'children' ~ '^[0-9]+$' THEN (extracted->>'children')::int END,
               CASE WHEN extracted->>'arrival_date' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN (extracted->>'arrival_date')::date END,
@@ -120,7 +132,33 @@ export async function runScoped(db: Db, weddingId: string, draft: WeddingDraft, 
            AS x(name text, date text, start_time text, venue_name text, venue_address text, dress_code text)`,
       [JSON.stringify(draft.events)],
     );
-    await q('GRANT SELECT ON pg_temp.guests, pg_temp.events TO saathi_reader');
+    await q(`CREATE TEMP TABLE tasks (
+      title text, category text, ceremony text, assignee text, status text, priority text, due_date date, source text) ON COMMIT DROP`);
+    await q(
+      `INSERT INTO pg_temp.tasks
+       SELECT title, NULLIF(category, ''), NULLIF(ceremony, ''), NULLIF(assignee, ''), status, priority, due_date, source
+         FROM public.tasks WHERE wedding_id = $1`,
+      [weddingId],
+    );
+    // Leave out vendors.phone and contact_name (§8)
+    await q(`CREATE TEMP TABLE vendors (
+      id uuid, category text, name text, status text, who_pays text, quoted numeric, notes text) ON COMMIT DROP`);
+    await q(
+      `INSERT INTO pg_temp.vendors
+       SELECT id, category, name, status, who_pays, quoted, NULLIF(notes, '')
+         FROM public.vendors WHERE wedding_id = $1`,
+      [weddingId],
+    );
+    await q(`CREATE TEMP TABLE payments (
+      vendor_id uuid, vendor_name text, category text, label text, amount numeric, due_date date, paid_at date) ON COMMIT DROP`);
+    await q(
+      `INSERT INTO pg_temp.payments
+       SELECT p.vendor_id, v.name, COALESCE(v.category, 'Other'), p.label, p.amount, p.due_date, p.paid_at
+         FROM public.payments p LEFT JOIN public.vendors v ON v.id = p.vendor_id
+        WHERE p.wedding_id = $1`,
+      [weddingId],
+    );
+    await q('GRANT SELECT ON pg_temp.guests, pg_temp.events, pg_temp.tasks, pg_temp.vendors, pg_temp.payments TO saathi_reader');
     try {
       await q('SET LOCAL ROLE saathi_reader');
     } catch (e) {
@@ -141,7 +179,7 @@ export async function runScoped(db: Db, weddingId: string, draft: WeddingDraft, 
 const SQL_SYSTEM = `You turn an Indian wedding host's question into ONE PostgreSQL SELECT.
 ${DATA_DICTIONARY}
 Rules:
-- Only SELECT (a WITH ... SELECT is fine). Only the tables guests and events. No comments, no semicolon.
+- Only SELECT (a WITH ... SELECT is fine). Only the tables guests, events, tasks, vendors and payments. No comments, no semicolon.
 - "Coming" means status IN ('yes','maybe') unless the host says confirmed only (status = 'yes').
 - Headcounts sum party_size. Children: sum children (NULL counts as 0).
 - Match free text case-insensitively with ILIKE (dietary, arrival_point, note). Jain, vegetarian, vegan, allergies live in dietary or note.

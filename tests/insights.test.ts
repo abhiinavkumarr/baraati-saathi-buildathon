@@ -29,6 +29,18 @@ before(async () => {
   await rsvp(mine, 'Aditya', 'maybe', 2, { adults: 2, children: 0, arrival_mode: 'car', needs_pickup: false, dietary: '' });
   await rsvp(mine, 'Meera', 'no', 1, null);
   await rsvp(other, 'Stranger', 'yes', 5, { needs_pickup: true });
+  await db.query(
+    "INSERT INTO tasks (wedding_id, title, status, priority, due_date) VALUES ($1, 'Book pandit', 'todo', 'high', '2026-11-01')",
+    [mine],
+  );
+  const [v] = await db.query<{ id: string }>(
+    "INSERT INTO vendors (wedding_id, category, name, contact_name, phone, status, quoted) VALUES ($1, 'Photography', 'Kathakar', 'Rahul', '+919999988888', 'booked', 240000) RETURNING id",
+    [mine],
+  );
+  await db.query(
+    "INSERT INTO payments (wedding_id, vendor_id, label, amount, due_date, paid_at) VALUES ($1, $2, 'Advance', 100000, '2026-11-10', '2026-11-10')",
+    [mine, v.id],
+  );
 });
 
 const draft = () => ({
@@ -82,6 +94,7 @@ test('checkSql accepts plain reads', () => {
 test('checkSql rejects writes, stacking, comments and system objects', () => {
   for (const bad of [
     'DELETE FROM guests',
+    'DELETE FROM tasks',
     'SELECT 1; DROP TABLE rsvps',
     'SELECT * FROM guests -- hi',
     'SELECT * FROM rsvps',
@@ -90,7 +103,18 @@ test('checkSql rejects writes, stacking, comments and system objects', () => {
     'SELECT current_setting(\'x\')',
     'SELECT * INTO hack FROM guests',
     'UPDATE guests SET name = 1',
+    'UPDATE vendors SET quoted = 0',
   ]) {
     assert.throws(() => checkSql(bad), undefined, bad);
   }
+});
+
+test('sandbox exposes tasks, vendors and payments without vendor phone or contact_name', async () => {
+  const t = await runScoped(db, mine, draft(), "SELECT title FROM tasks WHERE status = 'todo'");
+  assert.deepEqual(t.rows, [{ title: 'Book pandit' }]);
+  const p = await runScoped(db, mine, draft(), "SELECT vendor_name, sum(amount) AS paid FROM payments WHERE paid_at IS NOT NULL GROUP BY vendor_name");
+  assert.equal(p.rows[0].vendor_name, 'Kathakar');
+  assert.equal(Number(p.rows[0].paid), 100000);
+  await assert.rejects(runScoped(db, mine, draft(), 'SELECT phone FROM vendors'), /phone/);
+  await assert.rejects(runScoped(db, mine, draft(), 'SELECT contact_name FROM vendors'), /contact_name/);
 });

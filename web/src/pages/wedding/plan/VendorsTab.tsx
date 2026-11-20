@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { del, fmtInr, fmtInrFull, patch, post } from '../../../api.ts';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { del, fileToAttachment, fmtInr, fmtInrFull, patch, post } from '../../../api.ts';
 import { useWedding } from '../../../WeddingContext.tsx';
+import { ProposalCard } from '../../../components/agent/ControlRoom.tsx';
+import type { Proposal } from '../../../components/agent/types.ts';
 
 interface VendorItem {
   id: string;
@@ -55,6 +57,11 @@ export function VendorsTab({ slug }: { slug: string }) {
   const [editing, setEditing] = useState<VendorItem | null>(null);
   const [form, setForm] = useState(EMPTY_VENDOR);
   const [saving, setSaving] = useState(false);
+
+  // AI Quote reader (§5.2)
+  const quoteInput = useRef<HTMLInputElement>(null);
+  const [quoteBusy, setQuoteBusy] = useState(false);
+  const [quoteProposal, setQuoteProposal] = useState<Proposal | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -150,8 +157,35 @@ export function VendorsTab({ slug }: { slug: string }) {
     await load();
   }
 
+  async function onQuoteFile(files: FileList | null) {
+    const f = files?.[0];
+    if (!f) return;
+    setQuoteBusy(true);
+    setError('');
+    setQuoteProposal(null);
+    try {
+      const att = await fileToAttachment(f, f.name);
+      const r = await post<{ proposal: Proposal }>(`/api/host/${slug}/vendors/read-quote`, { t: token, file: att });
+      setQuoteProposal(r.proposal);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not read that quote.');
+    } finally {
+      setQuoteBusy(false);
+    }
+  }
+
   return (
     <div className="pl-section">
+      <input
+        ref={quoteInput}
+        type="file"
+        accept="image/*,application/pdf"
+        hidden
+        onChange={(e) => {
+          void onQuoteFile(e.target.files);
+          e.target.value = '';
+        }}
+      />
       <div className="pl-head">
         <div>
           <p className="eyebrow">Your Wedding</p>
@@ -162,8 +196,25 @@ export function VendorsTab({ slug }: { slug: string }) {
             </p>
           )}
         </div>
-        <button type="button" className="btn btn-cta btn-sm" onClick={() => openAdd()}>+ Add vendor</button>
+        <div className="pl-actions-row">
+          <button type="button" className="btn btn-outline btn-sm" disabled={quoteBusy} onClick={() => quoteInput.current?.click()}>
+            {quoteBusy ? 'Reading quote…' : '✦ Drop a quote (PDF/photo)'}
+          </button>
+          <button type="button" className="btn btn-cta btn-sm" onClick={() => openAdd()}>+ Add vendor</button>
+        </div>
       </div>
+
+      {quoteProposal && (
+        <ProposalCard
+          p={quoteProposal}
+          slug={slug}
+          token={token}
+          onApplied={() => {
+            setQuoteProposal(null);
+            void load();
+          }}
+        />
+      )}
 
       {error && <div className="card card-sm pl-err-box" role="alert"><span className="badge bad">Error</span><p>{error}</p></div>}
 

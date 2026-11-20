@@ -2,7 +2,8 @@
 // Every query filters by the wedding resolved from the host token.
 import { Router } from 'express';
 import { getDb, type Db } from './db.ts';
-import { HttpError } from './gemini.ts';
+import { ALLOWED_MIME, HttpError, generateJson, toInputPart, type Attachment } from './gemini.ts';
+import { loadSkills } from './skills.ts';
 import { hostWeddingRow } from './insights.ts';
 import { makeToken, normalizeDraft } from './wedding.ts';
 
@@ -882,7 +883,6 @@ planningRouter.patch('/host/:slug/info', async (req, res) => {
   await db.query('UPDATE weddings SET draft = $1, updated_at = now() WHERE id = $2', [JSON.stringify(next), w.id]);
   res.json({ ok: true, info: next.info });
 });
-
 planningRouter.post('/host/:slug/questions/:id/answer', async (req, res) => {
   const w = await hostWeddingRow(req.params.slug, req.body?.t);
   const id = req.params.id;
@@ -902,3 +902,398 @@ planningRouter.post('/host/:slug/questions/:id/answer', async (req, res) => {
   await db.query('UPDATE weddings SET draft = $1, updated_at = now() WHERE id = $2', [JSON.stringify(next), w.id]);
   res.json({ ok: true, info: next.info });
 });
+
+// ── P1: AI Guest Import (§5.1) ───────────────────────────────────────────────
+
+/** Strip phone numbers from pasted text before it ever leaves our server. */
+export function stripPhones(raw: string): string {
+  return raw.replace(/(?:\+?\d[\d\s\-().]{7,18}\d)/g, '[phone]');
+}
+
+planningRouter.post('/host/:slug/guests/import-preview', async (req, res) => {
+  await hostWeddingRow(req.params.slug, req.body?.t);
+  const rawText = typeof req.body?.text === 'string' ? req.body.text.slice(0, 30_000) : '';
+  const safeText = stripPhones(rawText);
+  const image = req.body?.image as Attachment | undefined;
+  if (image && (typeof image.data !== 'string' || !ALLOWED_MIME.test(image.mime_type ?? '') || image.data.length > 15_000_000)) {
+    throw new HttpError(400, 'Please upload a valid image (JPG/PNG/WebP) or PDF.');
+  }
+  if (!safeText.trim() && !image) throw new HttpError(400, 'Paste a guest list or upload a photo.');
+
+  const parts: unknown[] = [
+    {
+      type: 'text',
+      text:
+        'Extract the guest list below into structured rows. Deduplicate identical names. ' +
+        'Keep household entries like "Sharma family (4)" as ONE row with party_size = 4. ' +
+        'side must be "bride", "groom", "both", or empty string. Never include phone numbers.\n\n' +
+        (safeText.trim() ? safeText : '(See attached image of the guest list)'),
+    },
+  ];
+  if (image) parts.push(toInputPart(image));
+
+  const out = await generateJson<{
+    guests: { name: string; party_size: number; side: string; group_name: string; relation: string }[];
+  }>({
+    system: 'You parse Indian wedding guest lists from WhatsApp pastes, spreadsheets or handwritten photos into clean JSON.',
+    input: parts,
+    schema: {
+      type: 'object',
+      properties: {
+        guests: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              party_size: { type: 'integer' },
+              side: { type: 'string' },
+              group_name: { type: 'string' },
+              relation: { type: 'string' },
+            },
+            required: ['name', 'party_size', 'side', 'group_name', 'relation'],
+          },
+        },
+      },
+      required: ['guests'],
+    },
+  });
+
+  const seen = new Set<string>();
+  const guests = (Array.isArray(out.guests) ? out.guests : [])
+    .slice(0, 200)
+    .map((g) => ({
+      name: str(g.name, 80),
+      party_size: Math.min(20, Math.max(1, Number.parseInt(String(g.party_size ?? 1), 10) || 1)),
+      side: GUEST_SIDES.has(String(g.side).toLowerCase()) ? String(g.side).toLowerCase() : '',
+      group_name: str(g.group_name, 80),
+      relation: str(g.relation, 80),
+    }))
+    .filter((g) => {
+      if (!g.name) return false;
+      const key = g.name.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+  res.json({ guests });
+});
+
+planningRouter.post('/host/:slug/guests/bulk', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.body?.t);
+  const items = Array.isArray(req.body?.guests) ? req.body.guests.slice(0, 200) : [];
+  if (!items.length) throw new HttpError(400, 'No guests to import.');
+  const db = await getDb();
+  let added = 0;
+  for (const raw of items) {
+    const g = (raw ?? {}) as Record<string, unknown>;
+    const name = str(g.name, 80);
+    if (!name) continue;
+    const party = Math.min(20, Math.max(1, Number.parseInt(String(g.party_size ?? 1), 10) || 1));
+    const side = typeof g.side === 'string' && GUEST_SIDES.has(g.side) ? g.side : null;
+    await db.query(
+      `INSERT INTO rsvps (wedding_id, guest_token, name, phone, status, party_size, side, group_name, relation, source)
+       VALUES ($1, $2, $3, NULL, 'pending', $4, $5, $6, $7, 'import')`,
+      [w.id, makeToken(), name, party, side, str(g.group_name, 80) || null, str(g.relation, 80) || null],
+    );
+    added++;
+  }
+  res.status(201).json({ ok: true, added });
+});
+
+// ── P1: AI Quote Reader (§5.2) ───────────────────────────────────────────────
+
+planningRouter.post('/host/:slug/vendors/read-quote', async (req, res) => {
+  await hostWeddingRow(req.params.slug, req.body?.t);
+  const file = req.body?.file as Attachment | undefined;
+  if (!file || typeof file.data !== 'string' || !ALLOWED_MIME.test(file.mime_type ?? '') || file.data.length > 15_000_000) {
+    throw new HttpError(400, 'Please upload a vendor quote photo (JPG/PNG) or PDF under 10 MB.');
+  }
+
+  const parsed = await generateJson<{
+    vendor_name: string;
+    category: string;
+    total: number;
+    milestones: { label: string; amount: number; due_date: string }[];
+    cancellation_terms: string;
+    inclusions: string[];
+  }>({
+    system:
+      loadSkills('wedding-planner') +
+      `\nExtract the vendor quote details accurately. Pick category from: ${VENDOR_CATEGORIES.join(', ')}. ` +
+      'Amounts in INR (numbers only). Dates in YYYY-MM-DD or empty string if relative/unknown. Never invent numbers.',
+    input: [{ type: 'text', text: 'Read this Indian wedding vendor quote and extract vendor name, category, total, payment milestones, cancellation terms and inclusions.' }, toInputPart(file)],
+    schema: {
+      type: 'object',
+      properties: {
+        vendor_name: { type: 'string' },
+        category: { type: 'string' },
+        total: { type: 'number' },
+        milestones: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { label: { type: 'string' }, amount: { type: 'number' }, due_date: { type: 'string' } },
+            required: ['label', 'amount', 'due_date'],
+          },
+        },
+        cancellation_terms: { type: 'string' },
+        inclusions: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['vendor_name', 'category', 'total', 'milestones', 'cancellation_terms', 'inclusions'],
+    },
+  });
+
+  const milestones = (Array.isArray(parsed.milestones) ? parsed.milestones : []).slice(0, 10);
+  const detailLines = [
+    `Category: ${parsed.category || 'Other'} · Total: ₹${Math.round(Number(parsed.total) || 0).toLocaleString('en-IN')}`,
+    ...milestones.map((m) => `• ${m.label}: ₹${Math.round(Number(m.amount) || 0).toLocaleString('en-IN')}${m.due_date ? ` (due ${m.due_date})` : ''}`),
+    ...(parsed.inclusions?.length ? [`Inclusions: ${parsed.inclusions.slice(0, 5).join(', ')}`] : []),
+    ...(parsed.cancellation_terms ? [`Cancellation: ${parsed.cancellation_terms}`] : []),
+  ];
+
+  res.json({
+    proposal: {
+      id: `quote-${Date.now()}`,
+      kind: 'vendor_bundle',
+      title: `Vendor quote: ${parsed.vendor_name || 'Vendor'}`,
+      detail: detailLines.join('\n'),
+      payload: parsed,
+    },
+  });
+});
+
+// ── P1: AI Make My Checklist (§5.4) ──────────────────────────────────────────
+
+planningRouter.post('/host/:slug/tasks/suggest', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.body?.t);
+  const today = new Date().toISOString().slice(0, 10);
+  const d = w.draft;
+  const out = await generateJson<{
+    tasks: { title: string; due_date: string; category: string; ceremony: string; priority: 'normal' | 'high' | 'critical' }[];
+  }>({
+    system:
+      loadSkills('wedding-planner') +
+      '\nGenerate a practical Indian wedding planning checklist of 15 to 22 tasks working backwards from the wedding date(s). ' +
+      `Every due_date must be YYYY-MM-DD between today (${today}) and the wedding date. Assign category from ${VENDOR_CATEGORIES.join(', ')} and ceremony where relevant.`,
+    input: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          today,
+          city: d.city,
+          tradition: d.tradition,
+          ceremonies: d.events.map((e) => ({ name: e.name, date: e.date })),
+        }),
+      },
+    ],
+    schema: {
+      type: 'object',
+      properties: {
+        tasks: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string' },
+              due_date: { type: 'string' },
+              category: { type: 'string' },
+              ceremony: { type: 'string' },
+              priority: { type: 'string', enum: ['normal', 'high', 'critical'] },
+            },
+            required: ['title', 'due_date', 'category', 'ceremony', 'priority'],
+          },
+        },
+      },
+      required: ['tasks'],
+    },
+  });
+
+  const tasks = (Array.isArray(out.tasks) ? out.tasks : [])
+    .slice(0, 25)
+    .map((t) => ({
+      title: str(t.title, 200),
+      due_date: DATE_RE.test(str(t.due_date, 10)) ? str(t.due_date, 10) : null,
+      category: str(t.category, 60),
+      ceremony: str(t.ceremony, 60),
+      priority: TASK_PRIORITIES.has(t.priority) ? t.priority : 'normal',
+    }))
+    .filter((t) => t.title);
+
+  res.json({ tasks });
+});
+
+// ── P1: Sheets (§5.5) ────────────────────────────────────────────────────────
+
+interface SheetCol {
+  id: string;
+  name: string;
+  type: 'text' | 'number' | 'date' | 'check';
+}
+
+interface SheetRow {
+  id: string;
+  cells: Record<string, string | number | boolean>;
+}
+
+const COL_TYPES = new Set(['text', 'number', 'date', 'check']);
+
+function sanitizeSheet(rawCols: unknown, rawRows: unknown): { columns: SheetCol[]; rows: SheetRow[] } {
+  const columns: SheetCol[] = (Array.isArray(rawCols) ? rawCols : [])
+    .slice(0, 30)
+    .map((c, i) => {
+      const obj = (c ?? {}) as Record<string, unknown>;
+      return {
+        id: str(obj.id, 30) || `c${i + 1}`,
+        name: str(obj.name, 60) || `Column ${i + 1}`,
+        type: (COL_TYPES.has(String(obj.type)) ? String(obj.type) : 'text') as SheetCol['type'],
+      };
+    });
+  const rows: SheetRow[] = (Array.isArray(rawRows) ? rawRows : [])
+    .slice(0, 500)
+    .map((r, i) => {
+      const obj = (r ?? {}) as Record<string, unknown>;
+      const cellsIn = (obj.cells && typeof obj.cells === 'object' ? obj.cells : {}) as Record<string, unknown>;
+      const cells: Record<string, string | number | boolean> = {};
+      for (const col of columns) {
+        const v = cellsIn[col.id];
+        if (col.type === 'check') cells[col.id] = Boolean(v);
+        else if (col.type === 'number') cells[col.id] = v === '' || v === null || v === undefined ? '' : Number(v) || 0;
+        else cells[col.id] = v == null ? '' : String(v).slice(0, 300);
+      }
+      return { id: str(obj.id, 30) || `r${i + 1}`, cells };
+    });
+  return { columns, rows };
+}
+
+planningRouter.get('/host/:slug/sheets', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.query.t);
+  const db = await getDb();
+  const rows = await db.query<{ id: string; name: string; columns: SheetCol[]; rows: SheetRow[]; updated_at: string }>(
+    'SELECT id, name, columns, rows, updated_at FROM sheets WHERE wedding_id = $1 ORDER BY updated_at DESC',
+    [w.id],
+  );
+  res.json({ sheets: rows });
+});
+
+planningRouter.post('/host/:slug/sheets', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.body?.t);
+  const name = str(req.body?.name, 100) || 'Untitled sheet';
+  const { columns, rows } = sanitizeSheet(
+    req.body?.columns ?? [
+      { id: 'c1', name: 'Item', type: 'text' },
+      { id: 'c2', name: 'Notes', type: 'text' },
+      { id: 'c3', name: 'Cost (₹)', type: 'number' },
+      { id: 'c4', name: 'Done', type: 'check' },
+    ],
+    req.body?.rows ?? [{ id: 'r1', cells: { c1: '', c2: '', c3: '', c4: false } }],
+  );
+  const db = await getDb();
+  const [created] = await db.query<{ id: string; name: string; columns: SheetCol[]; rows: SheetRow[]; updated_at: string }>(
+    'INSERT INTO sheets (wedding_id, name, columns, rows) VALUES ($1, $2, $3, $4) RETURNING id, name, columns, rows, updated_at',
+    [w.id, name, JSON.stringify(columns), JSON.stringify(rows)],
+  );
+  res.status(201).json({ sheet: created });
+});
+
+planningRouter.patch('/host/:slug/sheets/:id', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.body?.t);
+  const id = req.params.id;
+  if (!UUID_RE.test(id)) throw new HttpError(404, 'Sheet not found.');
+  const db = await getDb();
+  const existing = await db.query<{ id: string; name: string; columns: SheetCol[]; rows: SheetRow[] }>(
+    'SELECT id, name, columns, rows FROM sheets WHERE id = $1 AND wedding_id = $2',
+    [id, w.id],
+  );
+  if (!existing[0]) throw new HttpError(404, 'Sheet not found.');
+  const name = req.body?.name !== undefined ? str(req.body.name, 100) || existing[0].name : existing[0].name;
+  const { columns, rows } = sanitizeSheet(req.body?.columns ?? existing[0].columns, req.body?.rows ?? existing[0].rows);
+  await db.query('UPDATE sheets SET name = $1, columns = $2, rows = $3, updated_at = now() WHERE id = $4 AND wedding_id = $5', [
+    name,
+    JSON.stringify(columns),
+    JSON.stringify(rows),
+    id,
+    w.id,
+  ]);
+  res.json({ ok: true });
+});
+
+planningRouter.delete('/host/:slug/sheets/:id', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.body?.t ?? req.query.t);
+  const id = req.params.id;
+  if (!UUID_RE.test(id)) throw new HttpError(404, 'Sheet not found.');
+  const db = await getDb();
+  const rows = await db.query<{ id: string }>('DELETE FROM sheets WHERE id = $1 AND wedding_id = $2 RETURNING id', [id, w.id]);
+  if (!rows[0]) throw new HttpError(404, 'Sheet not found.');
+  res.json({ ok: true });
+});
+
+planningRouter.post('/host/:slug/sheets/suggest', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.body?.t);
+  const prompt = str(req.body?.prompt, 300);
+  if (!prompt) throw new HttpError(400, 'Tell Saathi what sheet to create.');
+
+  const out = await generateJson<{
+    name: string;
+    columns: { id: string; name: string; type: 'text' | 'number' | 'date' | 'check' }[];
+    rows: { values: (string | number | boolean)[] }[];
+  }>({
+    system:
+      'Create a practical Indian wedding planning spreadsheet for the host\'s request. ' +
+      'Use 4 to 6 columns (ids c1, c2, ...) with types text, number, date or check, and 6 to 12 realistic starter rows.',
+    input: [{ type: 'text', text: `Wedding of ${w.draft.partner1_name} & ${w.draft.partner2_name} in ${w.draft.city}. Request: ${prompt}` }],
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        columns: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              name: { type: 'string' },
+              type: { type: 'string', enum: ['text', 'number', 'date', 'check'] },
+            },
+            required: ['id', 'name', 'type'],
+          },
+        },
+        rows: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { values: { type: 'array', items: { type: 'string' } } },
+            required: ['values'],
+          },
+        },
+      },
+      required: ['name', 'columns', 'rows'],
+    },
+  });
+
+  const cols: SheetCol[] = (out.columns ?? []).slice(0, 12).map((c, i) => ({
+    id: `c${i + 1}`,
+    name: str(c.name, 60) || `Col ${i + 1}`,
+    type: (COL_TYPES.has(c.type) ? c.type : 'text') as SheetCol['type'],
+  }));
+  const rawRows: SheetRow[] = (out.rows ?? []).slice(0, 50).map((r, ri) => {
+    const cells: Record<string, string | number | boolean> = {};
+    cols.forEach((c, ci) => {
+      const v = r.values?.[ci] ?? '';
+      if (c.type === 'check') cells[c.id] = String(v).toLowerCase() === 'true' || String(v).toLowerCase() === 'yes';
+      else if (c.type === 'number') cells[c.id] = Number(String(v).replace(/[^\d.-]/g, '')) || 0;
+      else cells[c.id] = String(v);
+    });
+    return { id: `r${ri + 1}`, cells };
+  });
+
+  const { columns, rows } = sanitizeSheet(cols, rawRows);
+  const db = await getDb();
+  const [created] = await db.query<{ id: string; name: string; columns: SheetCol[]; rows: SheetRow[]; updated_at: string }>(
+    'INSERT INTO sheets (wedding_id, name, columns, rows) VALUES ($1, $2, $3, $4) RETURNING id, name, columns, rows, updated_at',
+    [w.id, str(out.name, 100) || prompt.slice(0, 60), JSON.stringify(columns), JSON.stringify(rows)],
+  );
+  res.status(201).json({ sheet: created });
+});
+

@@ -5,11 +5,12 @@
 // Instructions: .agents/skills/host-control-room/SKILL.md
 import { randomBytes } from 'node:crypto';
 import { Router } from 'express';
-import { getDb } from './db.ts';
+import { getDb, type Db } from './db.ts';
 import { loadSkills } from './skills.ts';
 import { ALLOWED_MIME, HttpError, TEXT_MODELS, ai, generateJson, toInputPart, withFallback, type Attachment } from './gemini.ts';
 import { hostWeddingRow, queryGuests, type QueryResult } from './insights.ts';
 import { normalizeDraft, type WeddingDraft, type WeddingEvent } from './wedding.ts';
+import { computeBudget, urgency } from './planning.ts';
 
 export const controlRouter = Router();
 
@@ -24,7 +25,19 @@ const AUDIENCE_LABEL: Record<Audience, string> = {
 
 export interface Proposal {
   id: string;
-  kind: 'event_change' | 'announcement' | 'info_card' | 'question_answer' | 'reminders';
+  kind:
+    | 'event_change'
+    | 'announcement'
+    | 'info_card'
+    | 'question_answer'
+    | 'reminders'
+    | 'tasks'
+    | 'vendor'
+    | 'vendor_bundle'
+    | 'payment'
+    | 'budget_line'
+    | 'rooming'
+    | 'pickups';
   title: string;
   detail: string;
   payload: Record<string, unknown>;
@@ -131,7 +144,7 @@ const eventFields = {
 const TOOLS = [
   {
     name: 'query_guests',
-    description: 'Answer any question about the guest list (RSVPs, headcount, arrivals, pickups, food, children) from the database. Pass the question in plain words.',
+    description: 'Answer any question about the guest list, tasks, vendors, budget or payments from the database. Pass the question in plain words.',
     parameters: { type: 'object', properties: { question: { type: 'string' } }, required: ['question'] },
   },
   {
@@ -187,6 +200,116 @@ const TOOLS = [
         },
       },
       required: ['items'],
+    },
+  },
+  {
+    name: 'propose_tasks',
+    description: 'Propose adding one or more wedding planning tasks to the checklist. The host confirms before saving.',
+    parameters: {
+      type: 'object',
+      properties: {
+        tasks: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string' },
+              due_date: { type: 'string', description: 'YYYY-MM-DD or empty' },
+              category: { type: 'string' },
+              ceremony: { type: 'string' },
+              priority: { type: 'string', enum: ['normal', 'high', 'critical'] },
+            },
+            required: ['title'],
+          },
+        },
+      },
+      required: ['tasks'],
+    },
+  },
+  {
+    name: 'propose_vendor',
+    description: 'Propose adding a wedding vendor. The host confirms before saving.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        category: { type: 'string' },
+        status: { type: 'string', enum: ['shortlisted', 'negotiating', 'booked', 'cancelled'] },
+        quoted: { type: 'number', description: 'Quoted amount in INR' },
+        who_pays: { type: 'string', enum: ['bride', 'groom', 'shared'] },
+        notes: { type: 'string' },
+      },
+      required: ['name', 'category'],
+    },
+  },
+  {
+    name: 'propose_payment',
+    description: 'Propose recording a vendor payment or upcoming instalment.',
+    parameters: {
+      type: 'object',
+      properties: {
+        vendor_name: { type: 'string' },
+        label: { type: 'string' },
+        amount: { type: 'number' },
+        due_date: { type: 'string', description: 'YYYY-MM-DD or empty' },
+        paid: { type: 'boolean' },
+      },
+      required: ['label', 'amount'],
+    },
+  },
+  {
+    name: 'propose_budget_line',
+    description: 'Propose setting or updating the planned budget (in INR) for a category.',
+    parameters: {
+      type: 'object',
+      properties: {
+        category: { type: 'string' },
+        planned: { type: 'number' },
+      },
+      required: ['category', 'planned'],
+    },
+  },
+  {
+    name: 'propose_rooming',
+    description: 'Propose hotel room assignments grouping confirmed outstation guests by family/group into rooms of 2–3.',
+    parameters: {
+      type: 'object',
+      properties: {
+        rooms: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              room: { type: 'string' },
+              guest_names: { type: 'array', items: { type: 'string' } },
+            },
+            required: ['room', 'guest_names'],
+          },
+        },
+      },
+      required: ['rooms'],
+    },
+  },
+  {
+    name: 'propose_pickups',
+    description: 'Propose grouping airport/station arrivals landing within 45 min at the same point into 4-seat cabs. Drafts a guest announcement and a task to book the cabs.',
+    parameters: {
+      type: 'object',
+      properties: {
+        cabs: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              time: { type: 'string', description: 'e.g. 11 Feb 2:00 PM' },
+              point: { type: 'string', description: 'e.g. Jaipur airport' },
+              guest_names: { type: 'array', items: { type: 'string' } },
+            },
+            required: ['time', 'point', 'guest_names'],
+          },
+        },
+      },
+      required: ['cabs'],
     },
   },
 ];
@@ -296,6 +419,124 @@ async function runTool(
       });
       return { ok: true, proposed: true, recipients: matched.length };
     }
+    case 'propose_tasks': {
+      const raw = Array.isArray(args.tasks) ? args.tasks : [];
+      const tasks = raw
+        .slice(0, 30)
+        .map((t) => {
+          const r = (t ?? {}) as Record<string, unknown>;
+          const title = str(r.title, 200);
+          if (!title) return null;
+          const due = str(r.due_date, 10);
+          return {
+            title,
+            due_date: /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : null,
+            category: str(r.category, 60) || null,
+            ceremony: str(r.ceremony, 60) || null,
+            priority: ['normal', 'high', 'critical'].includes(String(r.priority)) ? String(r.priority) : 'normal',
+          };
+        })
+        .filter((x): x is NonNullable<typeof x> => Boolean(x));
+      if (!tasks.length) return { error: 'Provide at least one task with a title.' };
+      turn.proposals.push({
+        id: pid(),
+        kind: 'tasks',
+        title: `Add ${tasks.length} task${tasks.length === 1 ? '' : 's'}`,
+        detail: tasks.map((t) => `• ${t.title}${t.due_date ? ` (by ${t.due_date})` : ''}`).join('\n'),
+        payload: { tasks },
+      });
+      return { ok: true, proposed: true, count: tasks.length };
+    }
+    case 'propose_vendor': {
+      const name = str(args.name, 120);
+      const category = str(args.category, 60) || 'Other';
+      if (!name) return { error: 'Vendor name is required.' };
+      const status = ['shortlisted', 'negotiating', 'booked', 'cancelled'].includes(String(args.status)) ? String(args.status) : 'shortlisted';
+      const quoted = args.quoted != null && Number.isFinite(Number(args.quoted)) && Number(args.quoted) >= 0 ? Number(args.quoted) : null;
+      const who_pays = ['bride', 'groom', 'shared'].includes(String(args.who_pays)) ? String(args.who_pays) : null;
+      const notes = str(args.notes, 600) || null;
+      turn.proposals.push({
+        id: pid(),
+        kind: 'vendor',
+        title: `Vendor: ${name} (${category})`,
+        detail: [status, quoted != null ? `Quoted ₹${Math.round(quoted).toLocaleString('en-IN')}` : '', notes].filter(Boolean).join(' · '),
+        payload: { name, category, status, quoted, who_pays, notes },
+      });
+      return { ok: true, proposed: true };
+    }
+    case 'propose_payment': {
+      const label = str(args.label, 160);
+      const amount = Number(args.amount);
+      if (!label || !Number.isFinite(amount) || amount <= 0) return { error: 'Valid label and positive amount are required.' };
+      const vendor_name = str(args.vendor_name, 120);
+      const due = str(args.due_date, 10);
+      const due_date = /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : null;
+      const paid = Boolean(args.paid);
+      turn.proposals.push({
+        id: pid(),
+        kind: 'payment',
+        title: `Payment: ₹${Math.round(amount).toLocaleString('en-IN')}`,
+        detail: [vendor_name, label, due_date ? `Due ${due_date}` : '', paid ? 'Marked paid' : 'Unpaid'].filter(Boolean).join(' · '),
+        payload: { vendor_name, label, amount, due_date, paid },
+      });
+      return { ok: true, proposed: true };
+    }
+    case 'propose_budget_line': {
+      const category = str(args.category, 60);
+      const planned = Number(args.planned);
+      if (!category || !Number.isFinite(planned) || planned < 0) return { error: 'Category and non-negative planned amount required.' };
+      turn.proposals.push({
+        id: pid(),
+        kind: 'budget_line',
+        title: `Budget · ${category}`,
+        detail: `Set planned budget for ${category} to ₹${Math.round(planned).toLocaleString('en-IN')}`,
+        payload: { category, planned },
+      });
+      return { ok: true, proposed: true };
+    }
+    case 'propose_rooming': {
+      const raw = Array.isArray(args.rooms) ? args.rooms : [];
+      const rooms = raw
+        .slice(0, 50)
+        .map((r) => {
+          const obj = (r ?? {}) as Record<string, unknown>;
+          const room = str(obj.room, 60);
+          const guest_names = (Array.isArray(obj.guest_names) ? obj.guest_names : []).map((n) => str(n, 80)).filter(Boolean);
+          return room && guest_names.length ? { room, guest_names } : null;
+        })
+        .filter((x): x is { room: string; guest_names: string[] } => Boolean(x));
+      if (!rooms.length) return { error: 'Provide at least one room with guest names.' };
+      turn.proposals.push({
+        id: pid(),
+        kind: 'rooming',
+        title: `Room assignments (${rooms.length} room${rooms.length === 1 ? '' : 's'})`,
+        detail: rooms.map((r) => `Room ${r.room}: ${r.guest_names.join(', ')}`).join('\n'),
+        payload: { rooms },
+      });
+      return { ok: true, proposed: true, rooms: rooms.length };
+    }
+    case 'propose_pickups': {
+      const raw = Array.isArray(args.cabs) ? args.cabs : [];
+      const cabs = raw
+        .slice(0, 30)
+        .map((c) => {
+          const obj = (c ?? {}) as Record<string, unknown>;
+          const time = str(obj.time, 60);
+          const point = str(obj.point, 120);
+          const guest_names = (Array.isArray(obj.guest_names) ? obj.guest_names : []).map((n) => str(n, 80)).filter(Boolean);
+          return time && point && guest_names.length ? { time, point, guest_names } : null;
+        })
+        .filter((x): x is { time: string; point: string; guest_names: string[] } => Boolean(x));
+      if (!cabs.length) return { error: 'Provide at least one cab pairing.' };
+      turn.proposals.push({
+        id: pid(),
+        kind: 'pickups',
+        title: `Pickup plan (${cabs.length} cab${cabs.length === 1 ? '' : 's'})`,
+        detail: cabs.map((c, i) => `Cab ${i + 1} · ${c.time} at ${c.point}: ${c.guest_names.join(', ')}`).join('\n'),
+        payload: { cabs },
+      });
+      return { ok: true, proposed: true, cabs: cabs.length };
+    }
     default:
       return { error: `Unknown tool ${name}` };
   }
@@ -333,16 +574,34 @@ controlRouter.post('/host/:slug/agent', async (req, res) => {
     .map((t: { role: string; text: string }) => `${t.role === 'host' ? 'Host' : 'Saathi'}: ${t.text.slice(0, 500)}`)
     .join('\n');
 
-  const [rows, openQs, ann] = await Promise.all([guestRows(w.id), openQuestions(w.id), recentAnnouncements(w.id, 3)]);
+  const db = await getDb();
+  const today = new Date().toISOString().slice(0, 10);
+  const [rows, openQs, ann, tRows, vRows, bRows, pRows] = await Promise.all([
+    guestRows(w.id),
+    openQuestions(w.id),
+    recentAnnouncements(w.id, 3),
+    db.query<{ status: string; due_date: string | null }>('SELECT status, due_date FROM tasks WHERE wedding_id = $1', [w.id]),
+    db.query<{ id: string; category: string; status: string; quoted: string | null }>('SELECT id, category, status, quoted FROM vendors WHERE wedding_id = $1', [w.id]),
+    db.query<{ category: string; planned: string }>('SELECT category, planned FROM budget_lines WHERE wedding_id = $1', [w.id]),
+    db.query<{ vendor_id: string | null; amount: string; due_date: string | null; paid_at: string | null }>('SELECT vendor_id, amount, due_date, paid_at FROM payments WHERE wedding_id = $1', [w.id]),
+  ]);
   const stats = computeStats(rows, w.draft);
+  const budgetSummary = computeBudget(bRows, vRows, pRows, today);
+  const openTasks = tRows.filter((t) => t.status !== 'done').length;
+  const overdueTasks = tRows.filter((t) => urgency(t, today) === 'overdue').length;
+  const vendorsByStatus = vRows.reduce<Record<string, number>>((acc, v) => {
+    acc[v.status] = (acc[v.status] ?? 0) + 1;
+    return acc;
+  }, {});
   const d = w.draft;
   const system = [
-    loadSkills('host-control-room', 'guest-data-guardrails'),
-    `---\nWedding of ${d.partner1_name} & ${d.partner2_name}${d.city ? ` in ${d.city}` : ''}. Today is ${new Date().toISOString().slice(0, 10)}.`,
+    loadSkills('host-control-room', 'wedding-planner', 'guest-data-guardrails'),
+    `---\nWedding of ${d.partner1_name} & ${d.partner2_name}${d.city ? ` in ${d.city}` : ''}. Today is ${today}.`,
     `Schedule: ${JSON.stringify(d.events.map(({ name, date, start_time, venue_name, dress_code, notes }) => ({ name, date, start_time, venue_name, dress_code, notes })))}`,
     `Info cards guests already see: ${JSON.stringify(d.info.map((i) => i.question))}`,
-    `Headline numbers: ${JSON.stringify({ replied: stats.replied, yes: stats.yes, maybe: stats.maybe, no: stats.no, expected_people: stats.heads, children: stats.kids, pickups: stats.pickups })}`,
-    `Maybe guests (awaiting confirmation): ${rows.filter((g) => g.status === 'maybe').map((g) => g.name).join(', ') || 'none'}`,
+    `Headline numbers: ${JSON.stringify({ replied: stats.replied, yes: stats.yes, maybe: stats.maybe, no: stats.no, pending: stats.pending, expected_people: stats.heads, children: stats.kids, pickups: stats.pickups })}`,
+    `Planning numbers (INR): ${JSON.stringify({ planned: budgetSummary.total_planned, committed: budgetSummary.total_committed, paid: budgetSummary.total_paid, due_30d: budgetSummary.total_due_30d, open_tasks: openTasks, overdue_tasks: overdueTasks, vendors: vendorsByStatus })}`,
+    `Maybe or pending guests: ${rows.filter((g) => g.status === 'maybe' || g.status === 'pending').map((g) => g.name).join(', ') || 'none'}`,
     `Open guest questions (id: question): ${openQs.length ? openQs.map((q) => `${q.id}: ${q.question}`).join(' | ') : 'none'}`,
     `Recent announcements: ${ann.length ? ann.map((a) => a.text_en).join(' | ') : 'none'}`,
   ].join('\n');
@@ -409,11 +668,13 @@ function waNumber(phone: string | null): string {
   return d.length >= 11 ? d : '';
 }
 
-controlRouter.post('/host/:slug/apply', async (req, res) => {
-  const w = await hostWeddingRow(req.params.slug, req.body?.t);
-  const p = req.body?.proposal as { kind?: string; payload?: Record<string, unknown> } | undefined;
+export async function applyProposal(
+  db: Db,
+  w: { id: string; slug: string; draft: WeddingDraft },
+  p: { kind?: string; payload?: Record<string, unknown> } | undefined,
+  inviteBase: string,
+): Promise<{ ok: true; message: string; whatsapp?: { name: string; phone: string; url: string }[] }> {
   const payload = p?.payload ?? {};
-  const db = await getDb();
   const draft = w.draft;
   const save = (dr: WeddingDraft) =>
     db.query('UPDATE weddings SET draft = $1, updated_at = now() WHERE id = $2', [JSON.stringify(normalizeDraft(dr)), w.id]);
@@ -428,27 +689,28 @@ controlRouter.post('/host/:slug/apply', async (req, res) => {
         if (v) (ev as unknown as Record<string, string>)[k] = v;
       }
       await save(draft);
-      res.json({ ok: true, message: `${ev.name} updated. Guests and Saathi see the new details now.` });
-      return;
+      return { ok: true, message: `${ev.name} updated. Guests and Saathi see the new details now.` };
     }
     case 'announcement': {
-      const audience = AUDIENCES.includes(payload.audience as Audience) ? (payload.audience as Audience) : 'all';
+      const rawAud = str(payload.audience, 80) || 'all';
+      const audience = AUDIENCES.includes(rawAud as Audience) || rawAud.startsWith('group:') ? rawAud : 'all';
       const text_en = str(payload.text_en);
       const text_hi = str(payload.text_hi);
       if (!text_en) throw new HttpError(400, 'The announcement is empty.');
       await db.query('INSERT INTO announcements (wedding_id, text_en, text_hi, audience) VALUES ($1, $2, $3, $4)', [w.id, text_en, text_hi || null, audience]);
-      const invite = `${req.protocol}://${req.get('host')}/i/${w.slug}`;
       const couple = `${draft.partner1_name} & ${draft.partner2_name}`;
-      const whatsapp = (await guestRows(w.id))
+      const rows = await db.query<GuestRow & Record<string, unknown>>(
+        'SELECT id, guest_token, name, phone, status, party_size, group_name, extracted, created_at FROM rsvps WHERE wedding_id = $1 ORDER BY created_at',
+        [w.id],
+      );
+      const whatsapp = rows
         .filter((g) => inAudience(g, audience))
         .map((g) => {
           const num = waNumber(g.phone);
-          // Their own link: the invitation greets them by name and pre-fills their RSVP.
-          const text = `Namaste ${g.name} 🙏\n\n${text_hi ? `${text_hi}\n\n` : ''}${text_en}\n\n— ${couple}\n${invite}?g=${encodeURIComponent(g.name)}`;
+          const text = `Namaste ${g.name} 🙏\n\n${text_hi ? `${text_hi}\n\n` : ''}${text_en}\n\n— ${couple}\n${inviteBase}?g=${encodeURIComponent(g.guest_token)}`;
           return { name: g.name, phone: num ? `••••${num.slice(-4)}` : '', url: num ? `https://wa.me/${num}?text=${encodeURIComponent(text)}` : '' };
         });
-      res.json({ ok: true, message: 'Published on the invitation. Saathi knows too.', whatsapp });
-      return;
+      return { ok: true, message: 'Published on the invitation. Saathi knows too.', whatsapp };
     }
     case 'info_card': {
       const question = str(payload.question, 200);
@@ -456,8 +718,7 @@ controlRouter.post('/host/:slug/apply', async (req, res) => {
       if (!question || !answer) throw new HttpError(400, 'The info card is empty.');
       draft.info = [...draft.info.filter((i) => i.question !== question), { question, answer }].slice(-30);
       await save(draft);
-      res.json({ ok: true, message: 'Saved. Every guest\'s Saathi now knows this.' });
-      return;
+      return { ok: true, message: "Saved. Every guest's Saathi now knows this." };
     }
     case 'question_answer': {
       const answer = str(payload.answer);
@@ -468,13 +729,14 @@ controlRouter.post('/host/:slug/apply', async (req, res) => {
       if (!q[0] || !answer) throw new HttpError(404, 'Question not found.');
       draft.info = [...draft.info, { question: q[0].question, answer }].slice(-30);
       await save(draft);
-      res.json({ ok: true, message: 'Answered. Saathi now tells every guest who asks.' });
-      return;
+      return { ok: true, message: 'Answered. Saathi now tells every guest who asks.' };
     }
     case 'reminders': {
       const raw = Array.isArray(payload.items) ? payload.items : [];
-      const rows = await guestRows(w.id);
-      const invite = `${req.protocol}://${req.get('host')}/i/${w.slug}`;
+      const rows = await db.query<GuestRow & Record<string, unknown>>(
+        'SELECT id, guest_token, name, phone, status, party_size, group_name, extracted, created_at FROM rsvps WHERE wedding_id = $1 ORDER BY created_at',
+        [w.id],
+      );
       const couple = `${draft.partner1_name} & ${draft.partner2_name}`;
       const whatsapp = raw
         .map((it) => {
@@ -485,17 +747,161 @@ controlRouter.post('/host/:slug/apply', async (req, res) => {
           const g = rows.find((x) => x.name.toLowerCase() === gName.toLowerCase());
           if (!g || !message_en) return null;
           const num = waNumber(g.phone);
-          const text = `Namaste ${g.name} 🙏\n\n${message_hi ? `${message_hi}\n\n` : ''}${message_en}\n\n— ${couple}\n${invite}?g=${encodeURIComponent(g.name)}`;
+          const text = `Namaste ${g.name} 🙏\n\n${message_hi ? `${message_hi}\n\n` : ''}${message_en}\n\n— ${couple}\n${inviteBase}?g=${encodeURIComponent(g.guest_token)}`;
           return { name: g.name, phone: num ? `••••${num.slice(-4)}` : '', url: num ? `https://wa.me/${num}?text=${encodeURIComponent(text)}` : '' };
         })
         .filter((x): x is { name: string; phone: string; url: string } => Boolean(x));
       if (!whatsapp.length) throw new HttpError(400, 'No matching guests for reminders.');
-      res.json({ ok: true, message: `${whatsapp.length} personalised reminders ready to send.`, whatsapp });
-      return;
+      return { ok: true, message: `${whatsapp.length} personalised reminders ready to send.`, whatsapp };
+    }
+    case 'tasks': {
+      const raw = Array.isArray(payload.tasks) ? payload.tasks : [];
+      let added = 0;
+      for (const item of raw.slice(0, 30)) {
+        const r = (item ?? {}) as Record<string, unknown>;
+        const title = str(r.title, 200);
+        if (!title) continue;
+        const due = str(r.due_date, 10);
+        const due_date = /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : null;
+        const priority = ['normal', 'high', 'critical'].includes(String(r.priority)) ? String(r.priority) : 'normal';
+        await db.query(
+          `INSERT INTO tasks (wedding_id, title, category, ceremony, priority, due_date, source)
+           VALUES ($1, $2, $3, $4, $5, $6, 'ai')`,
+          [w.id, title, str(r.category, 60) || null, str(r.ceremony, 60) || null, priority, due_date],
+        );
+        added++;
+      }
+      if (!added) throw new HttpError(400, 'No valid tasks to add.');
+      return { ok: true, message: `Added ${added} task${added === 1 ? '' : 's'} to your checklist.` };
+    }
+    case 'vendor': {
+      const name = str(payload.name, 120);
+      const category = str(payload.category, 60) || 'Other';
+      if (!name) throw new HttpError(400, 'Vendor name is required.');
+      const status = ['shortlisted', 'negotiating', 'booked', 'cancelled'].includes(String(payload.status)) ? String(payload.status) : 'shortlisted';
+      const quoted = payload.quoted != null && Number.isFinite(Number(payload.quoted)) && Number(payload.quoted) >= 0 ? Number(payload.quoted) : null;
+      const who_pays = ['bride', 'groom', 'shared'].includes(String(payload.who_pays)) ? String(payload.who_pays) : null;
+      await db.query(
+        'INSERT INTO vendors (wedding_id, category, name, status, who_pays, quoted, notes) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [w.id, category, name, status, who_pays, quoted, str(payload.notes, 600) || null],
+      );
+      return { ok: true, message: `Added vendor ${name} (${category}).` };
+    }
+    case 'vendor_bundle': {
+      const name = str(payload.vendor_name ?? payload.name, 120);
+      const category = str(payload.category, 60) || 'Other';
+      if (!name) throw new HttpError(400, 'Vendor name is required.');
+      const total = payload.total != null && Number.isFinite(Number(payload.total)) && Number(payload.total) >= 0 ? Number(payload.total) : null;
+      const inclusions = Array.isArray(payload.inclusions) ? payload.inclusions.map((x) => str(x, 120)).filter(Boolean).join('; ') : '';
+      const terms = str(payload.cancellation_terms, 300);
+      const notes = [inclusions, terms ? `Cancellation: ${terms}` : ''].filter(Boolean).join(' · ').slice(0, 600) || null;
+      const [v] = await db.query<{ id: string }>(
+        "INSERT INTO vendors (wedding_id, category, name, status, quoted, notes) VALUES ($1, $2, $3, 'negotiating', $4, $5) RETURNING id",
+        [w.id, category, name, total, notes],
+      );
+      const milestones = Array.isArray(payload.milestones) ? payload.milestones : [];
+      let pCount = 0;
+      for (const m of milestones.slice(0, 12)) {
+        const obj = (m ?? {}) as Record<string, unknown>;
+        const label = str(obj.label, 140) || 'Milestone payment';
+        const amount = Number(obj.amount);
+        const due = str(obj.due_date, 10);
+        const due_date = /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : null;
+        if (Number.isFinite(amount) && amount > 0) {
+          await db.query(
+            'INSERT INTO payments (wedding_id, vendor_id, label, amount, due_date) VALUES ($1, $2, $3, $4, $5)',
+            [w.id, v.id, label, amount, due_date],
+          );
+          await db.query(
+            `INSERT INTO tasks (wedding_id, title, category, priority, due_date, source)
+             VALUES ($1, $2, $3, 'high', $4, 'quote')`,
+            [w.id, `Pay ₹${Math.round(amount).toLocaleString('en-IN')} (${label}) to ${name}`, category, due_date],
+          );
+          pCount++;
+        }
+      }
+      return { ok: true, message: `Saved ${name} with ${pCount} payment milestone${pCount === 1 ? '' : 's'} and reminder tasks.` };
+    }
+    case 'payment': {
+      const label = str(payload.label, 160);
+      const amount = Number(payload.amount);
+      if (!label || !Number.isFinite(amount) || amount <= 0) throw new HttpError(400, 'Invalid payment.');
+      const vendorName = str(payload.vendor_name, 120);
+      let vendorId: string | null = null;
+      if (vendorName) {
+        const vs = await db.query<{ id: string }>(
+          'SELECT id FROM vendors WHERE wedding_id = $1 AND lower(name) = lower($2) LIMIT 1',
+          [w.id, vendorName],
+        );
+        vendorId = vs[0]?.id ?? null;
+      }
+      const due = str(payload.due_date, 10);
+      const due_date = /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : null;
+      const paid_at = payload.paid ? new Date().toISOString().slice(0, 10) : null;
+      await db.query(
+        'INSERT INTO payments (wedding_id, vendor_id, label, amount, due_date, paid_at) VALUES ($1, $2, $3, $4, $5, $6)',
+        [w.id, vendorId, label, amount, due_date, paid_at],
+      );
+      return { ok: true, message: `Recorded payment of ₹${Math.round(amount).toLocaleString('en-IN')}.` };
+    }
+    case 'budget_line': {
+      const category = str(payload.category, 60);
+      const planned = Number(payload.planned);
+      if (!category || !Number.isFinite(planned) || planned < 0) throw new HttpError(400, 'Invalid budget line.');
+      await db.query(
+        `INSERT INTO budget_lines (wedding_id, category, planned)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (wedding_id, category) DO UPDATE SET planned = EXCLUDED.planned, updated_at = now()`,
+        [w.id, category, planned],
+      );
+      return { ok: true, message: `Budget for ${category} set to ₹${Math.round(planned).toLocaleString('en-IN')}.` };
+    }
+    case 'rooming': {
+      const rooms = Array.isArray(payload.rooms) ? payload.rooms : [];
+      let assigned = 0;
+      for (const r of rooms.slice(0, 50)) {
+        const obj = (r ?? {}) as Record<string, unknown>;
+        const room = str(obj.room, 60);
+        const names = (Array.isArray(obj.guest_names) ? obj.guest_names : []).map((n) => str(n, 80)).filter(Boolean);
+        if (!room || !names.length) continue;
+        for (const name of names) {
+          const upd = await db.query<{ id: string }>(
+            'UPDATE rsvps SET room = $1, updated_at = now() WHERE wedding_id = $2 AND lower(name) = lower($3) RETURNING id',
+            [room, w.id, name],
+          );
+          assigned += upd.length;
+        }
+      }
+      if (!assigned) throw new HttpError(400, 'No matching guests found to assign rooms.');
+      return { ok: true, message: `Assigned rooms for ${assigned} guest${assigned === 1 ? '' : 's'}.` };
+    }
+    case 'pickups': {
+      const cabs = Array.isArray(payload.cabs) ? payload.cabs : [];
+      if (!cabs.length) throw new HttpError(400, 'No cabs in proposal.');
+      const lines = cabs.map((c, i) => {
+        const obj = (c ?? {}) as Record<string, unknown>;
+        const names = (Array.isArray(obj.guest_names) ? obj.guest_names : []).map((n) => str(n, 80)).filter(Boolean);
+        return `Cab ${i + 1} (${str(obj.time, 60)} · ${str(obj.point, 120)}): ${names.join(', ')}`;
+      });
+      const textEn = `Airport/station pickup schedule is ready!\n${lines.join('\n')}`;
+      await db.query("INSERT INTO announcements (wedding_id, text_en, audience) VALUES ($1, $2, 'pickup')", [w.id, textEn]);
+      await db.query(
+        "INSERT INTO tasks (wedding_id, title, category, priority, source) VALUES ($1, $2, 'Transport', 'high', 'ai')",
+        [w.id, `Book ${cabs.length} pickup cab${cabs.length === 1 ? '' : 's'} for outstation arrivals`],
+      );
+      return { ok: true, message: `Published pickup schedule and added task to book ${cabs.length} cab${cabs.length === 1 ? '' : 's'}.` };
     }
     default:
       throw new HttpError(400, 'Unknown action.');
   }
+}
+
+controlRouter.post('/host/:slug/apply', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.body?.t);
+  const p = req.body?.proposal as { kind?: string; payload?: Record<string, unknown> } | undefined;
+  const db = await getDb();
+  const invite = `${req.protocol}://${req.get('host')}/i/${w.slug}`;
+  res.json(await applyProposal(db, w, p, invite));
 });
 
 // ── Briefing: numbers, charts and three AI insights ─────────────────────────

@@ -10,13 +10,17 @@ import { GuestsTab } from './pages/wedding/plan/GuestsTab.tsx';
 import { VendorsTab } from './pages/wedding/plan/VendorsTab.tsx';
 import { BudgetTab } from './pages/wedding/plan/BudgetTab.tsx';
 import { TasksTab } from './pages/wedding/plan/TasksTab.tsx';
+import { SheetsTab } from './pages/wedding/plan/SheetsTab.tsx';
 import { InviteTab } from './pages/wedding/app/InviteTab.tsx';
 import { RsvpsTab } from './pages/wedding/app/RsvpsTab.tsx';
 import { EventsTab } from './pages/wedding/app/EventsTab.tsx';
 import { InfoTab } from './pages/wedding/app/InfoTab.tsx';
 import { AnnouncementsTab } from './pages/wedding/app/AnnouncementsTab.tsx';
+import { RoomsTab } from './pages/wedding/app/RoomsTab.tsx';
+import { TravelTab } from './pages/wedding/app/TravelTab.tsx';
 import { LogoTab } from './pages/wedding/studio/LogoTab.tsx';
 import { MessagesTab } from './pages/wedding/studio/MessagesTab.tsx';
+import { TeaserTab } from './pages/wedding/studio/TeaserTab.tsx';
 import { WeddingProvider, useWedding } from './WeddingContext.tsx';
 
 // Minimal path router; the app has only a handful of pages.
@@ -84,12 +88,13 @@ function RouterView() {
       else if (tab === 'vendors') content = <VendorsTab slug={slug} />;
       else if (tab === 'budget') content = <BudgetTab slug={slug} />;
       else if (tab === 'tasks') content = <TasksTab slug={slug} />;
+      else if (tab === 'sheets') content = <SheetsTab slug={slug} />;
       else {
         content = (
           <section className="card">
             <p className="eyebrow">Your Wedding</p>
             <h1 className="h2" style={{ margin: '0 0 8px' }}>{tab}</h1>
-            <p className="muted">Coming right up in the next step.</p>
+            <p className="muted">Coming right up in Step 7.</p>
           </section>
         );
       }
@@ -99,28 +104,13 @@ function RouterView() {
       else if (tab === 'events') content = <EventsTab slug={slug} />;
       else if (tab === 'info') content = <InfoTab slug={slug} />;
       else if (tab === 'announcements') content = <AnnouncementsTab slug={slug} />;
-      else {
-        content = (
-          <section className="card">
-            <p className="eyebrow">Baraati App</p>
-            <h1 className="h2" style={{ margin: '0 0 8px' }}>{tab}</h1>
-            <p className="muted">Coming right up in Step 6.</p>
-          </section>
-        );
-      }
+      else if (tab === 'rooms') content = <RoomsTab slug={slug} />;
+      else if (tab === 'travel') content = <TravelTab slug={slug} />;
     } else if (section === 'studio') {
       if (tab === 'invitation') content = <Studio slug={slug} tokenOverride={token} embedded />;
       else if (tab === 'logo') content = <LogoTab slug={slug} />;
       else if (tab === 'messages') content = <MessagesTab slug={slug} />;
-      else {
-        content = (
-          <section className="card">
-            <p className="eyebrow">AI Studio</p>
-            <h1 className="h2" style={{ margin: '0 0 8px' }}>{tab}</h1>
-            <p className="muted">Coming right up in Step 6.</p>
-          </section>
-        );
-      }
+      else if (tab === 'teaser') content = <TeaserTab slug={slug} />;
     }
 
     return (
