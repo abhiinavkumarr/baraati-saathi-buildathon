@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { fileToAttachment, type Attachment } from '../api.ts';
+import { MicIcon, StopIcon } from './icons.tsx';
 
 /**
  * Tap to record a voice note, tap again to stop. The recording is handed to
@@ -80,7 +81,7 @@ export function MicButton({
         disabled={disabled || busy}
         onClick={() => void toggle()}
       >
-        {busy ? <span className="pl-mic-spin" aria-hidden /> : <span aria-hidden>{recording ? '■' : '🎙️'}</span>}
+        {busy ? <span className="pl-mic-spin" aria-hidden /> : <span aria-hidden className="pl-mic-ico">{recording ? <StopIcon size={14} /> : <MicIcon size={18} />}</span>}
         {text && <span aria-hidden>{busy ? 'Listening to it…' : recording ? 'Stop' : text}</span>}
       </button>
       {recording && <span className="pl-mic-live small" role="status">Listening… tap ■ to stop</span>}

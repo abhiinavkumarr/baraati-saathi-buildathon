@@ -2,7 +2,6 @@ import { useId, useRef, useState } from 'react';
 import { fileToAttachment, post, type Attachment, type WeddingDraft } from '../api.ts';
 import { navigate } from '../App.tsx';
 import { useWedding } from '../WeddingContext.tsx';
-import { ornamentUrl } from '../themes.ts';
 import { Create } from './Create.tsx';
 import { createSampleWedding } from './Login.tsx';
 import '../planner.css';
@@ -703,25 +702,6 @@ export function NewWedding() {
                     + Add day
                   </button>
                 )}
-
-                <div>
-                  <span className="pl-field-label">Card style</span>
-                  <div className="style-tiles" style={{ padding: 0 }} role="group" aria-label="Pick a card style">
-                    {STYLE_TILES.map(([id, label, sub]) => (
-                      <button
-                        key={id}
-                        type="button"
-                        className={`style-tile ${style === id ? 'selected' : ''}`}
-                        aria-pressed={style === id}
-                        onClick={() => setStyle(id)}
-                      >
-                        <span className="st-swatch" style={{ background: `${ornamentUrl(id)} center / 60px` }} aria-hidden />
-                        <b>{label} {style === id ? '✓' : ''}</b>
-                        <small>{sub}</small>
-                      </button>
-                    ))}
-                  </div>
-                </div>
 
                 {error && <p className="small" style={{ color: 'var(--bad)' }} role="alert">{error}</p>}
 

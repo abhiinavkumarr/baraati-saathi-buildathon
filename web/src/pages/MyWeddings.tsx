@@ -3,6 +3,7 @@ import { navigate } from '../App.tsx';
 import { useWedding } from '../WeddingContext.tsx';
 import { fmtDate } from '../format.ts';
 import '../planner.css';
+import { PlusIcon } from '../components/icons.tsx';
 
 export function MyWeddings() {
   const { session, weddings, loading, error, setPasscode, refreshWeddings, logout } = useWedding();
@@ -148,7 +149,7 @@ export function MyWeddings() {
               className="card card-hover pl-wedding-card pl-new-card"
               onClick={() => navigate('/new')}
             >
-              <span className="pl-new-plus" aria-hidden>+</span>
+              <span className="pl-new-plus" aria-hidden><PlusIcon size={22} /></span>
               <h2 className="h3">Create a wedding</h2>
               <p className="muted small">Set up your couple details, venue and ceremonies in 3 steps, or upload a card.</p>
             </button>

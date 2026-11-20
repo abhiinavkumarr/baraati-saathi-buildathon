@@ -1590,3 +1590,4 @@
   .tour { left: 8px; right: 8px; bottom: 8px; width: auto; max-height: 58vh; }
   .tour-launch { left: 16px; bottom: 16px; }
 }
+.pl-mic-ico { display: inline-grid; place-items: center; }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { MicIcon, SendIcon, StopIcon } from '../icons.tsx';
 import { fileToAttachment, post, type Attachment } from '../../api.ts';
 import { Rich } from '../../rich.tsx';
 import type { Msg, Proposal, QueryData } from './types.ts';
@@ -155,29 +156,36 @@ export function ControlRoom({
       <form className="room-composer" onSubmit={(e) => { e.preventDefault(); void send(text); }}>
         <button
           type="button"
-          className={`icon-btn ${recording ? 'rec' : ''}`}
+          className={`icon-btn room-mic ${recording ? 'rec' : ''}`}
           onClick={() => void toggleMic()}
           aria-pressed={recording}
           aria-label={recording ? 'Stop and send' : 'Speak to Saathi'}
         >
-          {recording ? '■' : '🎙️'}
+          {recording ? <StopIcon /> : <MicIcon />}
         </button>
         <textarea
           ref={inputRef}
           rows={1}
           aria-label="Tell Saathi what you need"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value);
+            // Grow with the message, up to the CSS max-height.
+            e.target.style.height = 'auto';
+            e.target.style.height = `${e.target.scrollHeight}px`;
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
               void send(text);
             }
           }}
-          placeholder={recording ? 'Listening… tap ■ when done' : 'e.g. "Sangeet 30 minute late hai, sabko bata do"'}
+          placeholder={recording ? 'Listening… tap ■ when done' : 'Ask Saathi, in Hindi or English…'}
           disabled={busy}
         />
-        <button className="btn btn-primary" disabled={busy || !text.trim()}>Send</button>
+        <button className="room-send" disabled={busy || !text.trim()} aria-label="Send">
+          <SendIcon />
+        </button>
       </form>
     </section>
   );

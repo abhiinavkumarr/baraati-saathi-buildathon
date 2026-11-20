@@ -217,21 +217,34 @@
 .room-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 24px 12px; }
 .room-composer {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: flex-end;
-  padding: 12px 16px 14px;
+  padding: 14px 16px 16px;
   border-top: 1px solid var(--line);
-  background: var(--bg-2);
+  background: var(--card);
 }
 .room-composer textarea {
   flex: 1;
   min-width: 0;
-  min-height: 44px;
+  height: 48px;
+  min-height: 48px;
+  max-height: 140px;
   resize: none;
-  border-radius: var(--r-md);
-  padding: 10px 16px;
-  max-height: 120px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  border-radius: 24px;
+  padding: 13px 18px;
+  line-height: 1.45;
+  background: var(--bg);
 }
+.room-composer .room-mic { flex: none; width: 48px; height: 48px; background: var(--bg-2); color: var(--ink); }
+.room-composer .room-mic.rec { background: var(--rose-ink); color: #fff; }
+.room-send {
+  flex: none; width: 48px; height: 48px; border: none; border-radius: 999px; display: grid; place-items: center;
+  background: var(--grad-cta); color: #fff; cursor: pointer; box-shadow: 0 8px 20px -8px rgba(200, 30, 74, .6);
+}
+.room-send:disabled { background: var(--bg-2); color: var(--muted); box-shadow: none; cursor: not-allowed; }
+.room-send:focus-visible, .room-composer .room-mic:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 
 @media (max-width: 600px) {
   .cr { padding: 8px 0 40px; }
