@@ -32,9 +32,11 @@ const OPENERS = {
 export function Create({
   embedded = false,
   onCreated,
+  onDraftReady,
 }: {
   embedded?: boolean;
   onCreated?: (slug: string, hostToken: string) => void;
+  onDraftReady?: (draft: WeddingDraft) => void;
 } = {}) {
   const [mode, setMode] = useState<'card' | 'scratch' | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -127,6 +129,10 @@ export function Create({
   }
 
   async function design() {
+    if (onDraftReady) {
+      onDraftReady(draft);
+      return;
+    }
     setBusy(true);
     setError('');
     try {

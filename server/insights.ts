@@ -13,6 +13,7 @@
 import { Router } from 'express';
 import { getDb, type Db } from './db.ts';
 import { HttpError, generateJson } from './gemini.ts';
+import { safeEqual } from './auth.ts';
 
 const FAST_MODEL = process.env.SAATHI_CHAT_MODEL || 'gemini-3.6-flash';
 import { normalizeDraft, type WeddingDraft } from './wedding.ts';
@@ -229,7 +230,7 @@ export async function hostWeddingRow(slug: string, token: unknown) {
   );
   const w = rows[0];
   if (!w) throw new HttpError(404, 'Wedding not found.');
-  if (typeof token !== 'string' || token !== w.host_token) throw new HttpError(403, 'Only the host can do that.');
+  if (typeof token !== 'string' || !token || !safeEqual(token, w.host_token)) throw new HttpError(403, 'Only the host can do that.');
   return { ...w, draft: normalizeDraft(w.draft) };
 }
 

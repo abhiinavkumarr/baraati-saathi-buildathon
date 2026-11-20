@@ -8,6 +8,7 @@ import { draftJsonSchema, missingFields, normalizeDraft, type WeddingDraft } fro
 import { getDb } from './db.ts';
 import { makeSlug, makeToken } from './wedding.ts';
 import { latestAssets } from './design.ts';
+import { sessionFromRequest } from './auth.ts';
 
 interface Turn {
   role: 'host' | 'saathi';
@@ -96,17 +97,40 @@ intakeRouter.post('/intake/turn', async (req, res) => {
 
 // Save the finished draft as a wedding. Returns the public slug and the
 // host's secret dashboard token.
+const HOST_SIDES = new Set(['bride', 'groom', 'planner']);
+
 intakeRouter.post('/weddings', async (req, res) => {
   const draft = normalizeDraft(req.body?.draft);
   const missing = missingFields(draft);
   if (missing.length) throw new HttpError(400, `Still missing: ${missing.join(', ')}`);
   const db = await getDb();
+  const user = await sessionFromRequest(req, db);
+  const hostSide = typeof req.body?.host_side === 'string' && HOST_SIDES.has(req.body.host_side) ? req.body.host_side : null;
+  const rawExp = Number(req.body?.expected_guests);
+  const expectedGuests = Number.isInteger(rawExp) && rawExp > 0 && rawExp <= 50000 ? rawExp : null;
+  const hashtag = typeof req.body?.hashtag === 'string' ? req.body.hashtag.trim().slice(0, 60) || null : null;
+
   const slug = makeSlug(draft);
   const hostToken = makeToken();
-  await db.query(
-    'INSERT INTO weddings (slug, host_token, draft, style) VALUES ($1, $2, $3, $4)',
-    [slug, hostToken, JSON.stringify(draft), draft.style],
+  const inserted = await db.query<{ id: string }>(
+    `INSERT INTO weddings (slug, host_token, draft, style, owner_user_id, host_side, expected_guests, hashtag)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING id`,
+    [slug, hostToken, JSON.stringify(draft), draft.style, user?.id ?? null, hostSide, expectedGuests, hashtag],
   );
+
+  // Optional couple photo uploaded during Create (§3).
+  const photo = req.body?.couple_photo as { mime_type?: string; data?: string } | undefined;
+  if (photo && typeof photo.data === 'string' && typeof photo.mime_type === 'string' && /^image\/(jpeg|png|webp)$/.test(photo.mime_type)) {
+    const buf = Buffer.from(photo.data, 'base64');
+    if (buf.length > 0 && buf.length <= MAX_ATTACHMENT_BYTES) {
+      await db.query(
+        'INSERT INTO assets (wedding_id, kind, mime_type, data, label) VALUES ($1, $2, $3, $4, $5)',
+        [inserted[0].id, 'upload', photo.mime_type, buf, 'couple_photo'],
+      );
+    }
+  }
+
   res.status(201).json({ slug, host_token: hostToken });
 });
 

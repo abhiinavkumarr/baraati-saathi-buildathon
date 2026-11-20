@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { post, type WeddingDraft } from '../api.ts';
+import { post, type StoredSession, type WeddingDraft } from '../api.ts';
+import { navigate } from '../App.tsx';
+import { useWedding } from '../WeddingContext.tsx';
 import '../workspace.css';
 
 export interface UserSession {
@@ -13,7 +15,7 @@ export interface ActiveWedding {
   host_token: string;
 }
 
-const SAMPLE_DRAFT: WeddingDraft = {
+export const SAMPLE_DRAFT: WeddingDraft = {
   partner1_name: 'Meera',
   partner2_name: 'Rohan',
   partner1_family: 'Daughter of Sunita & Rajesh Verma',
@@ -70,23 +72,24 @@ const SAMPLE_DRAFT: WeddingDraft = {
   contact_phone: '',
 };
 
-const ROLES: UserSession['role'][] = ['Couple', 'Family Host', 'Wedding Planner'];
-
-export async function createSampleWedding(): Promise<ActiveWedding> {
-  const r = await post<ActiveWedding>('/api/weddings', { draft: SAMPLE_DRAFT });
-  try {
-    localStorage.setItem(`host:${r.slug}`, r.host_token);
-    localStorage.setItem('saathi:active_wedding', JSON.stringify(r));
-  } catch {
-    /* ignore storage errors */
-  }
+export async function createSampleWedding(sessionToken?: string): Promise<ActiveWedding> {
+  const r = await post<ActiveWedding>(
+    '/api/weddings',
+    {
+      draft: SAMPLE_DRAFT,
+      host_side: 'bride',
+      expected_guests: 180,
+      hashtag: '#MeeraRohan2027',
+    },
+    sessionToken,
+  );
   return r;
 }
 
-export function Login({ onLogin }: { onLogin: (session: UserSession, wedding?: ActiveWedding) => void }) {
+export function Login() {
+  const { setSession, refreshWeddings } = useWedding();
   const [name, setName] = useState('');
   const [contact, setContact] = useState('');
-  const [role, setRole] = useState<UserSession['role']>('Couple');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [demoSlug, setDemoSlug] = useState<string | null>(null);
@@ -95,20 +98,35 @@ export function Login({ onLogin }: { onLogin: (session: UserSession, wedding?: A
     fetch('/api/health').then((r) => r.json()).then((h) => setDemoSlug(h.demo ?? null)).catch(() => {});
   }, []);
 
-  function enter(e: React.FormEvent) {
+  async function enter(e: React.FormEvent) {
     e.preventDefault();
-    const cleanName = name.trim() || 'Wedding Host';
-    onLogin({ name: cleanName, contact: contact.trim(), role });
+    setBusy(true);
+    setError('');
+    try {
+      const s = await post<StoredSession>('/api/login', { name: name.trim(), contact: contact.trim() });
+      setSession(s);
+      navigate('/weddings');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not sign in.');
+      setBusy(false);
+    }
   }
 
   async function enterSample() {
     setBusy(true);
     setError('');
     try {
-      const w = await createSampleWedding();
-      onLogin({ name: name.trim() || 'Meera & Rohan', contact: contact.trim(), role }, w);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not create sample workspace.');
+      const rand = Math.random().toString(36).slice(2, 8);
+      const s = await post<StoredSession>('/api/login', {
+        name: name.trim() || 'Meera & Rohan',
+        contact: `sample-${rand}@baraati.demo`,
+      });
+      setSession(s);
+      const w = await createSampleWedding(s.session);
+      await refreshWeddings();
+      navigate(`/w/${w.slug}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create sample wedding.');
       setBusy(false);
     }
   }
@@ -120,16 +138,16 @@ export function Login({ onLogin }: { onLogin: (session: UserSession, wedding?: A
           <div className="brand">
             <span className="wordmark">Baraati</span> <span className="tag">Saathi</span>
           </div>
-          <p className="eyebrow">AI Wedding Planning Workspace</p>
-          <h1 className="display">Plan the whole <span className="serif grad-text">shaadi</span> in one place.</h1>
+          <p className="eyebrow">AI Wedding Planner</p>
+          <h1 className="display">Your wedding&apos;s <span className="serif grad-text">Saathi</span></h1>
           <p className="lead login-lead">
-            From your first ceremony schedule and AI-designed invitations to RSVPs, travel tickets,
-            guest voice concierge, checklist and budget — powered by Gemini and AlloyDB.
+            Plan guests, vendors, budget and tasks in one place, run your living invitation and
+            voice concierge, and create art and messages with Google AI.
           </p>
           <ul className="login-highlights">
-            <li><span><b>AI Control Room:</b> Update ceremonies, query your guest list, and draft Hindi + English WhatsApp reminders.</span></li>
-            <li><span><b>Invitation Studio:</b> Turn a card photo or chat into moving regional art (Nano Banana) and music (Lyria).</span></li>
-            <li><span><b>Guest Logistics:</b> Parse flight/train tickets from RSVPs, track pickups, dietary needs, and checklist &amp; budget.</span></li>
+            <li><span><b>Your Wedding:</b> Guests, vendors, budget, payments, tasks and sheets in one back office.</span></li>
+            <li><span><b>Baraati App:</b> Living invitation, RSVPs, bilingual announcements, rooms and travel pickups.</span></li>
+            <li><span><b>AI Studio &amp; Ask Saathi:</b> Card art, logos, WhatsApp drafts, and an AI agent you approve.</span></li>
           </ul>
           {demoSlug && (
             <p className="login-guest-link">
@@ -140,16 +158,17 @@ export function Login({ onLogin }: { onLogin: (session: UserSession, wedding?: A
 
         <div className="login-card-wrap">
           <section className="card glass login-card" aria-labelledby="login-h">
-            <span className="badge warn">Hackathon Preview · No password needed</span>
-            <h2 id="login-h">Sign in to your workspace</h2>
-            <p className="muted small">Enter a name to jump straight in. Phone OTP &amp; Google Sign-In will be added for production.</p>
+            <span className="badge ai">✦ No password needed</span>
+            <h2 id="login-h">Sign in to your weddings</h2>
+            <p className="muted small">Enter your name and phone number or email to see your weddings or start a new one.</p>
 
-            <form onSubmit={enter} className="login-form">
+            <form onSubmit={(e) => void enter(e)} className="login-form">
               <label>
                 Your name
                 <input
                   type="text"
                   autoComplete="name"
+                  required
                   placeholder="e.g. Ananya Sharma"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -157,42 +176,25 @@ export function Login({ onLogin }: { onLogin: (session: UserSession, wedding?: A
               </label>
 
               <label>
-                Phone or email <span className="muted">(optional)</span>
+                Phone or email
                 <input
                   type="text"
-                  placeholder="e.g. +91 98765 43210 or ananya@email.com"
+                  required
+                  placeholder="e.g. 98765 43210 or ananya@email.com"
                   value={contact}
                   onChange={(e) => setContact(e.target.value)}
                 />
               </label>
 
-              <div className="login-roles" role="group" aria-label="Your role">
-                {ROLES.map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    className={`chip ${role === r ? 'on' : ''}`}
-                    aria-pressed={role === r}
-                    onClick={() => setRole(r)}
-                  >
-                    {r}
-                  </button>
-                ))}
-              </div>
-
               {error && <p className="error" role="alert">{error}</p>}
 
               <button type="submit" className="btn btn-cta login-full" disabled={busy}>
-                Enter Wedding Workspace →
+                {busy ? 'Signing in…' : 'Continue →'}
               </button>
               <button type="button" className="btn btn-outline login-full" disabled={busy} onClick={() => void enterSample()}>
-                {busy ? 'Setting up sample wedding…' : 'Launch with Sample Wedding (Meera & Rohan)'}
+                {busy ? 'Setting up sample wedding…' : 'Try the sample wedding'}
               </button>
             </form>
-
-            <p className="login-auth-note">
-              Authentication is intentionally skipped for this hackathon demo so you can explore every tool in one click.
-            </p>
           </section>
         </div>
       </div>

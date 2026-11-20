@@ -545,3 +545,128 @@ controlRouter.get('/host/:slug/briefing', async (req, res) => {
   }
   res.json({ stats, briefing: insights, announcements: await recentAnnouncements(w.id, 5) });
 });
+
+// ── Home: ranked "What needs you" + section counts (computed in code) ────────
+
+const KEY_VENDOR_CATS = ['Venue', 'Catering', 'Photography', 'Decor', 'Makeup'];
+
+controlRouter.get('/host/:slug/home', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.query.t);
+  const db = await getDb();
+  const today = new Date().toISOString().slice(0, 10);
+  const in7 = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+
+  const [rsvps, openQs, tasks, vendors, budgetLines, payments, assetCount] = await Promise.all([
+    db.query<{ status: string; party_size: number; extracted: GuestRow['extracted'] }>(
+      'SELECT status, party_size, extracted FROM rsvps WHERE wedding_id = $1',
+      [w.id],
+    ),
+    db.query<{ id: string }>("SELECT id FROM questions WHERE wedding_id = $1 AND status = 'open'", [w.id]),
+    db.query<{ status: string; due_date: string | null }>('SELECT status, due_date FROM tasks WHERE wedding_id = $1', [w.id]),
+    db.query<{ category: string; status: string; quoted: string | null }>('SELECT category, status, quoted FROM vendors WHERE wedding_id = $1', [w.id]),
+    db.query<{ planned: string }>('SELECT planned FROM budget_lines WHERE wedding_id = $1', [w.id]),
+    db.query<{ amount: string; due_date: string | null; paid_at: string | null }>('SELECT amount, due_date, paid_at FROM payments WHERE wedding_id = $1', [w.id]),
+    db.query<{ n: string }>('SELECT count(*)::text AS n FROM assets WHERE wedding_id = $1', [w.id]),
+  ]);
+
+  const toDateStr = (d: unknown): string | null => {
+    if (!d) return null;
+    if (d instanceof Date) return d.toISOString().slice(0, 10);
+    const s = String(d);
+    return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
+  };
+
+  const overdueTasks = tasks.filter((t) => {
+    const dd = toDateStr(t.due_date);
+    return t.status !== 'done' && Boolean(dd && dd < today);
+  }).length;
+  const openTasks = tasks.filter((t) => t.status !== 'done').length;
+
+  const dueSoonPayments = payments.filter((p) => {
+    const dd = toDateStr(p.due_date);
+    return !p.paid_at && Boolean(dd && dd <= in7);
+  }).length;
+
+  const pendingRsvps = rsvps.filter((r) => r.status === 'pending').length;
+  const comingRsvps = rsvps.filter((r) => r.status === 'yes' || r.status === 'maybe').length;
+  const comingHeads = rsvps.filter((r) => r.status === 'yes' || r.status === 'maybe').reduce((s, r) => s + r.party_size, 0);
+
+  const outstationNoPickup = rsvps.filter(
+    (r) => r.status === 'yes' && Boolean(r.extracted?.arrival_date) && !r.extracted?.needs_pickup,
+  ).length;
+
+  const bookedCats = new Set(vendors.filter((v) => v.status === 'booked').map((v) => v.category.toLowerCase()));
+  const missingCats = KEY_VENDOR_CATS.filter((c) => !bookedCats.has(c.toLowerCase()));
+
+  const needs: { kind: string; text: string; href: string; count: number }[] = [];
+  if (overdueTasks > 0) {
+    needs.push({
+      kind: 'overdue_tasks',
+      text: `${overdueTasks} overdue task${overdueTasks === 1 ? '' : 's'}`,
+      href: `/w/${w.slug}/plan/tasks`,
+      count: overdueTasks,
+    });
+  }
+  if (dueSoonPayments > 0) {
+    needs.push({
+      kind: 'payments_due',
+      text: `${dueSoonPayments} payment${dueSoonPayments === 1 ? '' : 's'} due within 7 days`,
+      href: `/w/${w.slug}/plan/budget`,
+      count: dueSoonPayments,
+    });
+  }
+  if (openQs.length > 0) {
+    needs.push({
+      kind: 'open_questions',
+      text: `${openQs.length} guest question${openQs.length === 1 ? '' : 's'} waiting`,
+      href: `/w/${w.slug}/app/info`,
+      count: openQs.length,
+    });
+  }
+  if (pendingRsvps > 0) {
+    needs.push({
+      kind: 'pending_rsvps',
+      text: `${pendingRsvps} pending RSVP${pendingRsvps === 1 ? '' : 's'} to follow up`,
+      href: `/w/${w.slug}/app/rsvps`,
+      count: pendingRsvps,
+    });
+  }
+  if (outstationNoPickup > 0) {
+    needs.push({
+      kind: 'outstation_pickup',
+      text: `${outstationNoPickup} confirmed outstation guest${outstationNoPickup === 1 ? '' : 's'} without pickup`,
+      href: `/w/${w.slug}/app/travel`,
+      count: outstationNoPickup,
+    });
+  }
+  if (missingCats.length > 0) {
+    needs.push({
+      kind: 'unbooked_vendors',
+      text: `Still to book: ${missingCats.slice(0, 3).join(', ')}${missingCats.length > 3 ? ` +${missingCats.length - 3}` : ''}`,
+      href: `/w/${w.slug}/plan/vendors`,
+      count: missingCats.length,
+    });
+  }
+
+  const paid = payments.filter((p) => Boolean(p.paid_at)).reduce((s, p) => s + Number(p.amount || 0), 0);
+  const planned = budgetLines.reduce((s, b) => s + Number(b.planned || 0), 0);
+  const committed = vendors.filter((v) => v.status === 'booked').reduce((s, v) => s + Number(v.quoted || 0), 0);
+  const creations = Number(assetCount[0]?.n || 0);
+
+  res.json({
+    needs: needs.slice(0, 6),
+    counts: {
+      paid,
+      planned,
+      committed,
+      open_tasks: openTasks,
+      overdue_tasks: overdueTasks,
+      coming: comingRsvps,
+      coming_heads: comingHeads,
+      pending: pendingRsvps,
+      creations,
+      vendors_booked: vendors.filter((v) => v.status === 'booked').length,
+      vendors_total: vendors.length,
+    },
+  });
+});

@@ -39,6 +39,7 @@ export interface WeddingDraft {
   info: InfoItem[];
   contact_name: string;
   contact_phone: string;
+  logo_asset_id?: string;
 }
 
 export function emptyDraft(): WeddingDraft {
@@ -96,6 +97,7 @@ export function normalizeDraft(input: unknown): WeddingDraft {
     }).filter((i) => i.question && i.answer),
     contact_name: str(d.contact_name, 80),
     contact_phone: str(d.contact_phone, 20),
+    ...(typeof d.logo_asset_id === 'string' && /^[0-9a-f-]{36}$/i.test(d.logo_asset_id) ? { logo_asset_id: d.logo_asset_id } : {}),
   };
 }
 

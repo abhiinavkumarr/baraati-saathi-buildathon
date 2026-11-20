@@ -7,6 +7,7 @@ import { rateLimit } from './rateLimit.ts';
 import { saathiRouter } from './saathi.ts';
 import { insightsRouter } from './insights.ts';
 import { controlRouter } from './control.ts';
+import { authRouter } from './auth.ts';
 import { HttpError, MODELS } from './gemini.ts';
 import { getDb } from './db.ts';
 import { skillMenu } from './skills.ts';
@@ -30,15 +31,17 @@ app.get('/api/health', async (_req, res) => {
 });
 
 const TEN_MIN = 10 * 60_000;
+app.use('/api/login', rateLimit('login', 30, TEN_MIN));
 app.use('/api/intake', rateLimit('intake', 40, TEN_MIN));
-app.use(/^\/api\/weddings\/[^/]+\/(art|music|event-art)$/, rateLimit('media', 30, TEN_MIN));
+app.use(/^\/api\/weddings\/[^/]+\/(art|music|event-art|logo)$/, rateLimit('media', 30, TEN_MIN));
 app.use(/^\/api\/weddings\/[^/]+\/rsvp$/, rateLimit('rsvp', 20, TEN_MIN));
 app.use(/^\/api\/saathi\/[^/]+\/chat$/, rateLimit('chat', 40, TEN_MIN));
 app.use(/^\/api\/saathi\/[^/]+\/live-token$/, rateLimit('live', 15, TEN_MIN));
 app.use(/^\/api\/saathi\/[^/]+\/tool$/, rateLimit('tool', 200, TEN_MIN));
 app.use(/^\/api\/host\/[^/]+\/ask$/, rateLimit('ask', 30, TEN_MIN));
 app.use(/^\/api\/host\/[^/]+\/agent$/, rateLimit('agent', 40, TEN_MIN));
-app.use(/^\/api\/host\/[^/]+\/(apply|briefing)$/, rateLimit('host', 300, TEN_MIN));
+app.use(/^\/api\/host\/[^/]+\/(apply|briefing|home)$/, rateLimit('host', 300, TEN_MIN));
+app.use('/api', authRouter);
 app.use('/api', intakeRouter);
 app.use('/api', designRouter);
 app.use('/api', saathiRouter);
