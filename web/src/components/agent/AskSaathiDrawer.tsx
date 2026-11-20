@@ -58,7 +58,10 @@ export function AskSaathiDrawer({ slug, token }: { slug: string; token: string }
       )}
 
       <aside
-        ref={drawerRef}
+        ref={(el) => {
+          drawerRef.current = el;
+          if (el) el.inert = !open;
+        }}
         className={`saathi-drawer ${open ? 'open' : ''}`}
         aria-label="Ask Saathi"
         aria-hidden={!open}
