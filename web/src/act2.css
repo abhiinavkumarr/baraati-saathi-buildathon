@@ -61,7 +61,7 @@
 .music-btn { position: fixed; right: 16px; bottom: 16px; z-index: 10; width: 50px; height: 50px; border-radius: 50%; border: 2px solid var(--i-accent); background: var(--i-panel); color: var(--i-ink); font-size: 18px; box-shadow: 0 10px 24px rgba(0,0,0,.25); }
 
 /* ───────── Studio (/studio/:slug) ───────── */
-.studio, .host { max-width: 1180px; margin: 0 auto; padding: 20px 16px 50px; }
+.studio, main.host { max-width: 1180px; margin: 0 auto; padding: 20px 16px 50px; }
 .studio-grid { display: grid; grid-template-columns: 1fr auto; gap: 40px; align-items: start; }
 @media (max-width: 900px) { .studio-grid { grid-template-columns: 1fr; } }
 .jobs { list-style: none; padding: 0; margin: 20px 0; display: flex; flex-direction: column; gap: 10px; }
