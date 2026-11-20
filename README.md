@@ -34,9 +34,9 @@ phone tree. Running Baraati, we kept running into the same three problems:
 | Act | For | What happens |
 |---|---|---|
 | **1. Card → wedding** | Host | Upload a photo or PDF of the card, or describe the wedding by chat or a voice note, in English, Hindi or Hinglish. Gemini reads every ceremony, date and venue, suggests ceremonies from the family's tradition, and asks only for what's missing. No card? Saathi builds one from the conversation. |
-| **2. An invitation that moves** | Host → guests | Nano Banana paints card art in a regional style (Rajasthani, South Indian temple, Bengali alpana, Punjabi phulkari…) and can turn a couple photo into a miniature-painting illustration; Lyria composes the invitation's music. Guests open one link in any browser, no install, and RSVP in their own words ("coming with mom, landing 6 pm on the 12th, need pickup"). Gemini turns that note into arrival time, pickup, children and dietary needs. |
+| **2. An invitation that moves** | Host → guests | Nano Banana paints card art in a regional style (Rajasthani, South Indian temple, Bengali alpana, Punjabi phulkari…), **a scene for every ceremony** (turmeric and marigolds for Haldi, henna for Mehendi, the sacred fire for the Pheras) and, optionally, a couple illustration from a photo; Lyria composes the music. Guests open one link in any browser, no install: doors swing open on the art, petals fall, a countdown runs, each ceremony has directions and *Add to calendar*. A personal link greets the guest by name. They RSVP in their own words ("coming with mom, landing 6 pm on the 12th, need pickup") and Gemini turns the note into arrival time, pickup, children and dietary needs. |
 | **3. Saathi, by voice** | Guests | Guests ask by text or by voice (Gemini Live) in Hindi or English and get answers from this wedding's own data. Saathi can change the guest's own RSVP after confirming, and sends anything it can't answer to the host. When the host replies, the answer becomes an info card every guest's Saathi now knows. |
-| **Ask your guest list** | Host | "Kitne log Jain khana khayenge?" Gemini writes one SQL query, AlloyDB runs it on this wedding's RSVPs in a locked-down sandbox, and Gemini answers in the host's language, with the table and the exact query shown. |
+| **4. The host's AI control room** | Host | The host types or **speaks** in Hindi or English: *"Haldi ko 12 baje kar do aur sabko bata do"*. A Gemini agent with function calling checks the guest list (AlloyDB), then **proposes** a schedule change and an English + Hindi announcement as cards. Nothing changes until the host taps Publish; then the update appears on the invitation, Saathi knows it, and the host gets a personalised WhatsApp message per guest. Questions like *"Kitne log Jain khana khayenge?"* are answered by Gemini-written SQL in a locked-down AlloyDB sandbox, with the table and query shown. A morning **briefing** spots what matters (three guests landing within 20 minutes can share one cab), next to live charts of arrivals and food needs. |
 
 ## Architecture
 
@@ -76,10 +76,15 @@ flowchart LR
   SM -. API key, DB password .-> CR
 ```
 
-* **One server, three agents.** The intake agent, the card designer and Saathi
-  each load their instructions from an Agent Skill (`.agents/skills/`), the
+* **One server, four agents.** The intake agent, the card designer, the guest
+  concierge and the host's control room each load their instructions from an
+  Agent Skill (`.agents/skills/`), the
   same format Antigravity reads. The server lists skills by name and
   description and loads a skill's full body only when an agent needs it.
+* **The host's agent proposes; the host decides.** The control-room agent's
+  tools (`query_guests`, `propose_event_change`, `propose_announcement`,
+  `propose_info_card`, `propose_question_answer`) only create cards. A
+  separate, host-authenticated `/apply` call makes the change.
 * **Tools run on the server, always.** Saathi's four tools
   (`get_wedding_details`, `get_my_rsvp`, `update_rsvp`, `ask_host`) take the
   wedding and guest from the request, never from the model's arguments. Voice
@@ -105,7 +110,7 @@ flowchart LR
 | **AlloyDB for PostgreSQL** | System of record (weddings, RSVPs, questions, media) and the engine for **Ask your guest list**, reached through the Auth Proxy bundled in the container. |
 | **Cloud Run** | Hosting: one container with the API, the web app and the Auth Proxy. |
 | **Secret Manager** | Gemini API key and database password; nothing secret in env files or images. |
-| **Agent Skills** | `wedding-intake`, `card-designer`, `saathi-concierge`, `guest-data-guardrails`. |
+| **Agent Skills** | `wedding-intake`, `card-designer`, `saathi-concierge`, `host-control-room`, `guest-data-guardrails`. |
 | **Antigravity** | Development IDE, with the Google Cloud Data Agent Kit plugin. |
 
 ## Ask your guest list: model-written SQL, safely
@@ -156,17 +161,20 @@ Built for grandparents as much as for the couple:
 ## Tests and CI
 
 ```bash
-npm test          # 22 tests on in-memory PGlite; no API key needed
+npm test          # 27 tests on in-memory PGlite; no API key needed
 npm run typecheck
 ```
 
 * `tests/insights.test.ts`: sandbox isolation, rollback, role, SQL static check.
 * `tests/saathi-tools.test.ts`: tools only touch the caller's own RSVP and
   wedding, ignore injected ids, and never return phone numbers or host tokens.
+* `tests/control.test.ts`: the control room's numbers (headcounts, pickups,
+  food needs per household, arrivals) come from code, not the model.
 * `tests/wedding.test.ts`: draft normalisation (bad model output becomes
   "unknown", never a guess), the readiness rule, slugs and tokens, Agent Skill parsing.
 * Live checks against a running server with real Gemini calls:
-  `scripts/e2e.ts` (the whole flow), `scripts/ask-test.ts` (guest-list
+  `scripts/smoke.ts` (every flow, PASS/FAIL), `scripts/agent-test.ts` (control
+  room in Hinglish), `scripts/e2e.ts` (the whole flow), `scripts/ask-test.ts` (guest-list
   questions plus a prompt-injection attempt), `scripts/live-test.ts` (Gemini Live voice).
 
 GitHub Actions runs typecheck, tests and the production build on every push.
@@ -204,7 +212,8 @@ server/          Express API
   intake.ts        Act 1: card / chat / voice note → structured wedding
   design.ts        Act 2: art, music, RSVP + note extraction, host dashboard
   saathi.ts        Act 3: chat with function calling, Live tokens, tool relay
-  insights.ts      Ask your guest list (text-to-SQL sandbox)
+  insights.ts      Guest-list questions (text-to-SQL sandbox)
+  control.ts       Host control room: agent, confirm-to-apply, briefing
   gemini.ts        Interactions API wrapper, fallback chains
   db.ts            AlloyDB (pg) or PGlite, plus the rollback sandbox
   skills.ts        Agent Skills loader
