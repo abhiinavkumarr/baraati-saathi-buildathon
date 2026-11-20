@@ -92,20 +92,20 @@ export function Host({
       {!embedded && (
         <header className="cr-top">
           <div className="cr-brand">
-            <span className="wordmark"><b>B</b>ARAATI</span> <span className="tag">Saathi</span>
+            <span className="wordmark">Baraati</span> <span className="tag">Saathi</span>
           </div>
           <nav className="cr-links" aria-label="Wedding pages">
-            <a href={`/i/${slug}`} target="_blank" rel="noreferrer">Invitation ↗</a>
-            <a href={`/studio/${slug}?t=${encodeURIComponent(token)}`}>Studio</a>
+            <a className="btn btn-ghost btn-sm" href={`/i/${slug}`} target="_blank" rel="noreferrer">Invitation ↗</a>
+            <a className="btn btn-outline btn-sm" href={`/studio/${slug}?t=${encodeURIComponent(token)}`}>Studio</a>
             <span className="live"><span className="live-dot" aria-hidden>●</span> Live</span>
           </nav>
         </header>
       )}
 
-      <section className="cr-hero">
+      <section className="cr-hero panel-ink">
         <div>
           <p className="eyebrow">Control room</p>
-          <h1 className="display">{d.partner1_name} <span className="amp">&amp;</span> {d.partner2_name}</h1>
+          <h1 className="display">{d.partner1_name} <span className="amp serif">&amp;</span> {d.partner2_name}</h1>
           <p className="muted">
             {[d.city, s?.days_to_wedding != null && s.days_to_wedding >= 0 ? `${s.days_to_wedding} days to go` : '', `${d.events.length} ceremonies`].filter(Boolean).join(' · ')}
           </p>
@@ -134,7 +134,7 @@ export function Host({
                 <li key={it.title}>
                   <b>{it.title}</b>
                   <span>{it.detail}</span>
-                  <button className="brief-do" onClick={() => setPending(it.prompt)}>Ask Saathi to do it →</button>
+                  <button className="brief-do btn btn-white btn-sm" onClick={() => setPending(it.prompt)}>Ask Saathi to do it →</button>
                 </li>
               ))}
             </ul>
@@ -202,7 +202,7 @@ export function Host({
             {open.map((q) => (
               <li key={q.id}>
                 <span>{q.question}</span>
-                <button className="brief-do" onClick={() => setPending(`Answer the guest question "${q.question}": `)}>Answer with Saathi →</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setPending(`Answer the guest question "${q.question}": `)}>Answer with Saathi →</button>
               </li>
             ))}
           </ul>
@@ -305,10 +305,10 @@ function ControlRoom({ slug, token, push, onPushed, onChange }: {
     <section className="room" aria-labelledby="room-h">
       <header className="room-head">
         <div>
-          <h2 id="room-h">Ask Saathi to run your wedding</h2>
+          <h2 id="room-h">Ask Saathi to run your <span className="serif">wedding</span></h2>
           <p>Type or speak, in Hindi or English. Saathi checks your guest list, drafts changes and updates. You approve.</p>
         </div>
-        <span className="room-models" aria-hidden>Gemini · AlloyDB</span>
+        <span className="badge ai" aria-hidden>✦ Gemini · AlloyDB</span>
       </header>
 
       <div className="room-thread" role="log" aria-live="polite" aria-label="Conversation with Saathi">
@@ -336,12 +336,12 @@ function ControlRoom({ slug, token, push, onPushed, onChange }: {
 
       {!busy && (
         <div className="room-chips">
-          {chips.map((c) => <button key={c} onClick={() => void send(c)}>{c}</button>)}
+          {chips.map((c) => <button className="chip" key={c} onClick={() => void send(c)}>{c}</button>)}
         </div>
       )}
 
       <form className="room-composer" onSubmit={(e) => { e.preventDefault(); void send(text); }}>
-        <button type="button" className={`room-mic ${recording ? 'rec' : ''}`} onClick={() => void toggleMic()} aria-pressed={recording} aria-label={recording ? 'Stop and send' : 'Speak to Saathi'}>
+        <button type="button" className={`icon-btn ${recording ? 'rec' : ''}`} onClick={() => void toggleMic()} aria-pressed={recording} aria-label={recording ? 'Stop and send' : 'Speak to Saathi'}>
           {recording ? '■' : '🎙️'}
         </button>
         <textarea
@@ -354,7 +354,7 @@ function ControlRoom({ slug, token, push, onPushed, onChange }: {
           placeholder={recording ? 'Listening… tap ■ when done' : 'e.g. "Sangeet 30 minute late hai, sabko bata do"'}
           disabled={busy}
         />
-        <button className="room-send" disabled={busy || !text.trim()}>Send</button>
+        <button className="btn btn-primary" disabled={busy || !text.trim()}>Send</button>
       </form>
     </section>
   );
@@ -435,21 +435,21 @@ function ProposalCard({ p, slug, token, onApplied }: { p: Proposal; slug: string
       <div className="pc-head">
         <span className="pc-icon" aria-hidden>{k.icon}</span>
         <div>
-          <small>{k.label}</small>
+          <span className="badge ai">✦ {k.label}</span>
           <b>{p.title}</b>
         </div>
         {(p.kind === 'announcement' || p.kind === 'reminders') && hi && (
           <div className="pc-lang" role="group" aria-label="Language">
-            <button aria-pressed={lang === 'en'} onClick={() => setLang('en')}>EN</button>
-            <button aria-pressed={lang === 'hi'} onClick={() => setLang('hi')}>हिं</button>
+            <button className={`chip ${lang === 'en' ? 'on' : ''}`} aria-pressed={lang === 'en'} onClick={() => setLang('en')}>EN</button>
+            <button className={`chip ${lang === 'hi' ? 'on' : ''}`} aria-pressed={lang === 'hi'} onClick={() => setLang('hi')}>हिं</button>
           </div>
         )}
       </div>
       <p className="pc-body" lang={lang === 'hi' && hi ? 'hi' : undefined}>{lang === 'hi' && hi ? hi : p.detail}</p>
       {state !== 'done' ? (
         <div className="pc-actions">
-          <button className="pc-go" disabled={state === 'busy'} onClick={() => void apply()}>{state === 'busy' ? 'Applying…' : k.cta}</button>
-          <button className="pc-skip" disabled={state === 'busy'} onClick={() => setState('dismissed')}>Dismiss</button>
+          <button className="btn btn-ghost btn-sm" disabled={state === 'busy'} onClick={() => setState('dismissed')}>Dismiss</button>
+          <button className="btn btn-cta btn-sm" disabled={state === 'busy'} onClick={() => void apply()}>{state === 'busy' ? 'Applying…' : k.cta}</button>
           {msg && <span className="error" role="alert">{msg}</span>}
         </div>
       ) : (
@@ -516,7 +516,7 @@ function Bars({ items, unit }: { items: { label: string; value: number }[]; unit
 function Stat({ n, label, accent, warn, sub }: { n: number; label: string; accent?: boolean; warn?: boolean; sub?: string }) {
   return (
     <div className={`stat ${accent ? 'accent' : ''} ${warn ? 'warn' : ''}`}>
-      <b>{n}</b>
+      <b className="num">{n}</b>
       <span>{label}{sub ? <em> · {sub}</em> : null}</span>
     </div>
   );
