@@ -13,11 +13,13 @@ Google AI usage, security design and tests.
 
 - **Live:** https://baraati-saathi-570792946314.asia-south1.run.app (Cloud Run,
   GCP project `baraati-saathi`, region `asia-south1`, AlloyDB cluster `saathi`)
-- **Submission window:** 11 PM IST 20 Nov to **9:00 AM IST 21 Nov, hard**.
-  It needs the live link, the deck (official template, PDF ≤ 5 MB) and a
-  backup demo video. The deck and video live outside this repo (in the
-  founder's Baraati workspace: `.claude/outputs/2026-11-15-startup-buildathon/`)
-  and show the pre-rework dashboard: regenerate them after product changes.
+- **Submission:** the founder handles timing and submission (live link, deck,
+  demo video). Don't cut scope or rush for a deadline unless the founder asks.
+  The deck and video live outside this repo (in the founder's Baraati workspace:
+  `.claude/outputs/2026-11-15-startup-buildathon/`) and are regenerated after
+  product changes.
+- **What to build next:** `PLANNER_SPEC.md` (Saathi as a wedding planner),
+  styled per `DESIGN.md`.
 - **Branch:** `master`. CI (`.github/workflows/ci.yml`) runs typecheck, tests
   and build on every push.
 
@@ -30,8 +32,9 @@ Google AI usage, security design and tests.
    material, so this repo must never contain code copied from the Baraati app
    (React Native app, guest web, Supabase backend). Connecting to Baraati means
    calling its APIs over a documented boundary, not pasting its code in.
-2. **No secrets in git or in commands.** The Gemini key and the DB password
-   live in Secret Manager (`gemini-api-key`, `alloydb-password`); locally in
+2. **No secrets in git or in commands.** The Gemini key, the DB password and
+   the private-wedding passcode live in Secret Manager (`gemini-api-key`,
+   `alloydb-password`, `owner-passcode` → env `OWNER_PASSCODE`); locally in
    `.env` (ignored). Never print them.
 3. **Never invent traction or data** in copy, the deck or the seed. Demo seed
    guests have no phone numbers, so no real person is ever messaged.
@@ -78,7 +81,7 @@ node --import tsx scripts/seed-demo.ts <baseUrl>  # fresh demo wedding + links
 Deploy (from **PowerShell**: Git Bash rewrites `/tmp` in env values):
 
 ```powershell
-& "$env:LOCALAPPDATA\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd" run deploy baraati-saathi --source . --region asia-south1 --allow-unauthenticated --min-instances 1 --max-instances 1 --memory 1Gi --cpu 1 --timeout 300 --set-secrets "GEMINI_API_KEY=gemini-api-key:latest,DB_PASSWORD=alloydb-password:latest" --set-env-vars "PGLITE_DIR=/tmp/pglite,ALLOYDB_INSTANCE_URI=projects/baraati-saathi/locations/asia-south1/clusters/saathi/instances/saathi-primary,ALLOYDB_PROXY_FLAGS=--public-ip,DB_USER=postgres,DB_NAME=postgres,DEMO_SLUG=riya-kabir-edad262c" --quiet
+& "$env:LOCALAPPDATA\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd" run deploy baraati-saathi --source . --region asia-south1 --allow-unauthenticated --min-instances 1 --max-instances 1 --memory 1Gi --cpu 1 --timeout 300 --set-secrets "GEMINI_API_KEY=gemini-api-key:latest,DB_PASSWORD=alloydb-password:latest,OWNER_PASSCODE=owner-passcode:latest" --set-env-vars "PGLITE_DIR=/tmp/pglite,ALLOYDB_INSTANCE_URI=projects/baraati-saathi/locations/asia-south1/clusters/saathi/instances/saathi-primary,ALLOYDB_PROXY_FLAGS=--public-ip,DB_USER=postgres,DB_NAME=postgres,DEMO_SLUG=riya-kabir-edad262c" --quiet
 ```
 
 `DEMO_SLUG` is the public sample invitation on the landing page. If you reseed,
