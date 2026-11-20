@@ -119,7 +119,7 @@ export function Invite({ slug }: { slug: string }) {
 
   return (
     <div className={`invite ${open ? 'is-open' : ''}`} style={vars}>
-      {template && (
+      {template && !preview && (
         <a className="template-back" href="/templates">← All styles · <b>{template.label}</b></a>
       )}
       {gate !== 'gone' && (

@@ -4,6 +4,7 @@ import { renderCard } from '../card.ts';
 import { storage } from '../format.ts';
 import { useWedding } from './Invite.tsx';
 import { useWedding as useWeddingList } from '../WeddingContext.tsx';
+import { TEMPLATE_STYLES } from '../themes.ts';
 
 type Job = 'idle' | 'working' | 'done' | 'failed';
 
@@ -28,6 +29,7 @@ export function Studio({
   const [events, setEvents] = useState<Job>('idle');
   const [msg, setMsg] = useState('');
   const [frame, setFrame] = useState(0); // bump to reload the preview iframe
+  const [previewStyle, setPreviewStyle] = useState(''); // '' = the wedding's own style
   const started = useRef(false);
   const photoInput = useRef<HTMLInputElement>(null);
   const photoOnlyInput = useRef<HTMLInputElement>(null);
@@ -174,11 +176,28 @@ export function Studio({
             </div>
           </div>
           <p className="muted small">Guests open the link in any browser and RSVP. No app needed.</p>
+
+          <div className="card card-sm studio-styles">
+            <b>Invitation styles</b>
+            <p className="muted small">Preview your invitation in each style. AI artwork is made for your chosen style, so other styles show their built-in patterns.</p>
+            <div className="pl-chip-row" role="group" aria-label="Preview the invitation in a style">
+              {TEMPLATE_STYLES.map((s) => {
+                const on = (previewStyle || d.style) === s.id;
+                return (
+                  <button key={s.id} type="button" className={`chip ${on ? 'on' : ''}`} aria-pressed={on}
+                    onClick={() => setPreviewStyle(s.id === d.style ? '' : s.id)}>
+                    {s.label}{s.id === d.style ? ' · yours' : ''}
+                  </button>
+                );
+              })}
+            </div>
+            <a className="small" href="/templates" target="_blank" rel="noreferrer">See all styles side by side ↗</a>
+          </div>
         </section>
 
         <section className="phone-wrap">
           <div className="phone">
-            <iframe key={frame} title="Invitation preview" src={`/i/${slug}?preview=1`} />
+            <iframe key={`${frame}-${previewStyle}`} title="Invitation preview" src={`/i/${slug}?preview=1${previewStyle ? `&style=${previewStyle}` : ''}`} />
           </div>
           <a className="muted small" href={`/i/${slug}`} target="_blank" rel="noreferrer">Open as a guest ↗</a>
         </section>

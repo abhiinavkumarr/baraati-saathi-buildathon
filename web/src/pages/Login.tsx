@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { post, type StoredSession, type WeddingDraft } from '../api.ts';
 import { navigate } from '../App.tsx';
 import { useWedding } from '../WeddingContext.tsx';
@@ -39,11 +39,6 @@ export function Login() {
   const [contact, setContact] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [demoSlug, setDemoSlug] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch('/api/health').then((r) => r.json()).then((h) => setDemoSlug(h.demo ?? null)).catch(() => {});
-  }, []);
 
   async function enter(e: React.FormEvent) {
     e.preventDefault();
@@ -56,27 +51,6 @@ export function Login() {
       navigate(list.length === 0 ? '/new' : '/weddings');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not sign in.');
-      setBusy(false);
-    }
-  }
-
-  async function enterSample() {
-    setBusy(true);
-    setError('');
-    try {
-      const rand = Math.random().toString(36).slice(2, 8);
-      const s = await post<StoredSession>('/api/login', {
-        name: name.trim() || 'Meera & Rohan',
-        contact: `sample-${rand}@baraati.demo`,
-      });
-      setSession(s);
-      // Every account sees the shared, view-only demo wedding.
-      const list = await refreshWeddings(undefined, s);
-      const demo = list.find((w) => w.demo);
-      if (demo) navigate(`/w/${demo.slug}`);
-      else navigate(`/w/${(await createSampleWedding(s.session)).slug}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create sample wedding.');
       setBusy(false);
     }
   }
@@ -99,11 +73,9 @@ export function Login() {
             <li><span><b>Baraati App:</b> Living invitation, RSVPs, bilingual announcements, rooms and travel pickups.</span></li>
             <li><span><b>AI Studio &amp; Ask Saathi:</b> Card art, logos, WhatsApp drafts, and an AI agent you approve.</span></li>
           </ul>
-          {demoSlug && (
-            <p className="login-guest-link">
-              Want to see the guest view first? <a href="/templates" target="_blank" rel="noreferrer">See sample invitations in every style ↗</a>
-            </p>
-          )}
+          <p className="login-guest-link">
+            Every account opens with Meera &amp; Rohan&apos;s demo wedding and a guided tour of the Google AI inside.
+          </p>
         </section>
 
         <div className="login-card-wrap">
@@ -140,9 +112,6 @@ export function Login() {
 
               <button type="submit" className="btn btn-cta login-full" disabled={busy}>
                 {busy ? 'Signing in…' : 'Continue →'}
-              </button>
-              <button type="button" className="btn btn-outline login-full" disabled={busy} onClick={() => void enterSample()}>
-                {busy ? 'Setting up sample wedding…' : 'Try the sample wedding'}
               </button>
             </form>
           </section>
