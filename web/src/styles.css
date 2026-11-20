@@ -50,12 +50,6 @@
   --t-fast: .15s;
   --t: .25s;
 
-  /* Legacy aliases: remove once nothing references them */
-  --cream:   var(--bg);
-  --surface: var(--bg-2);
-  --gold:    var(--saffron);
-  --gold-dp: var(--rose-ink);
-
   color-scheme: light;
 }
 
@@ -147,9 +141,7 @@ p { line-height: 1.6; }
 .wordmark b { font-weight: 800; color: inherit; }
 .tag { font-family: 'Instrument Serif', serif; font-style: italic; font-weight: 400; font-size: 24px; color: var(--rose-ink); background: var(--grad-cta); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
-/* ── Legacy page rules (migrated in steps 2–5) ──────────────────────────── */
-.choose { text-align: center; padding: 40px 0; }
-.choose h1 { font-size: clamp(36px, 6vw, 60px); margin: 0 0 12px; line-height: 1.05; }
+/* ── Create page layout ─────────────────────────────────────────────────── */
 .choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; max-width: 760px; margin: 36px auto 0; }
 .choice { display: flex; flex-direction: column; gap: 8px; text-align: left; }
 .choice .icon { width: 48px; height: 48px; border-radius: var(--r-sm); background: var(--grad-peach); display: grid; place-items: center; font-size: 24px; margin-bottom: 4px; }
@@ -172,8 +164,6 @@ p { line-height: 1.6; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 20px 10px; }
 .composer { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); background: var(--card); border-radius: 0 0 var(--r-card) var(--r-card); }
 .composer input { flex: 1; min-width: 0; }
-.send { border: none; background: var(--ink); color: var(--on-ink); border-radius: var(--r-pill); padding: 0 22px; font-weight: 600; min-height: 44px; box-shadow: var(--shadow-btn); }
-.send:disabled { opacity: .5; }
 
 .preview { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); box-shadow: var(--shadow-card); padding: 26px; position: sticky; top: 88px; }
 .couple { font-size: 40px; margin: 0 0 6px; line-height: 1.05; }
@@ -182,8 +172,6 @@ p { line-height: 1.6; }
 .events { list-style: none; padding: 0; margin: 18px 0; display: flex; flex-direction: column; gap: 10px; }
 .events li { display: flex; flex-direction: column; padding: 12px 14px; border-radius: var(--r-sm); background: var(--bg); border-left: 3px solid var(--saffron); }
 .events li span { font-size: 14px; }
-.primary { width: 100%; border: none; border-radius: var(--r-pill); padding: 14px; font-weight: 700; background: var(--grad-cta); color: #fff; box-shadow: var(--shadow-cta); }
-.primary:disabled { background: var(--bg-2); color: var(--muted); box-shadow: none; cursor: default; }
 
 /* ── Focus & motion (global) ────────────────────────────────────────────── */
 :focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: inherit; }
