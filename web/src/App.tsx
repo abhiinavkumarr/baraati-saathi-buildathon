@@ -15,6 +15,8 @@ import { RsvpsTab } from './pages/wedding/app/RsvpsTab.tsx';
 import { EventsTab } from './pages/wedding/app/EventsTab.tsx';
 import { InfoTab } from './pages/wedding/app/InfoTab.tsx';
 import { AnnouncementsTab } from './pages/wedding/app/AnnouncementsTab.tsx';
+import { LogoTab } from './pages/wedding/studio/LogoTab.tsx';
+import { MessagesTab } from './pages/wedding/studio/MessagesTab.tsx';
 import { WeddingProvider, useWedding } from './WeddingContext.tsx';
 
 // Minimal path router; the app has only a handful of pages.
@@ -106,16 +108,19 @@ function RouterView() {
           </section>
         );
       }
-    } else if (section === 'studio' && tab === 'invitation') {
-      content = <Studio slug={slug} tokenOverride={token} embedded />;
-    } else if (section !== 'home') {
-      content = (
-        <section className="card">
-          <p className="eyebrow">AI Studio</p>
-          <h1 className="h2" style={{ margin: '0 0 8px' }}>{tab}</h1>
-          <p className="muted">Coming right up in Step 4.</p>
-        </section>
-      );
+    } else if (section === 'studio') {
+      if (tab === 'invitation') content = <Studio slug={slug} tokenOverride={token} embedded />;
+      else if (tab === 'logo') content = <LogoTab slug={slug} />;
+      else if (tab === 'messages') content = <MessagesTab slug={slug} />;
+      else {
+        content = (
+          <section className="card">
+            <p className="eyebrow">AI Studio</p>
+            <h1 className="h2" style={{ margin: '0 0 8px' }}>{tab}</h1>
+            <p className="muted">Coming right up in Step 6.</p>
+          </section>
+        );
+      }
     }
 
     return (

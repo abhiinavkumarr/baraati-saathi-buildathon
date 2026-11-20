@@ -1227,3 +1227,57 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ───────── Step 4: AI Studio (Logo, Messages) ───────── */
+
+.pl-logo-style-btn {
+  text-align: left;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ink);
+}
+
+.pl-logo-style-btn.on {
+  box-shadow: 0 0 0 2px var(--ink);
+  background: var(--card);
+}
+
+.pl-logo-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pl-logo-card.selected {
+  box-shadow: 0 0 0 2px var(--ink), var(--shadow-card);
+}
+
+.pl-logo-preview {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+}
+
+.pl-logo-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pl-msg-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pl-msg-body {
+  white-space: pre-wrap;
+  margin: 0;
+  color: var(--ink-2);
+}

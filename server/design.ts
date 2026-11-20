@@ -5,6 +5,8 @@ import { getDb } from './db.ts';
 import { loadSkills } from './skills.ts';
 import { ALLOWED_MIME, HttpError, generateImage, generateJson, generateMusic, toInputPart, type Attachment } from './gemini.ts';
 import { makeToken, normalizeDraft, type WeddingDraft } from './wedding.ts';
+import { publicDetails } from './saathi.ts';
+import { safeEqual } from './auth.ts';
 import QRCode from 'qrcode';
 
 export const designRouter = Router();
@@ -28,7 +30,7 @@ async function wedding(slug: string): Promise<WeddingRow> {
 
 async function hostWedding(slug: string, token: unknown): Promise<WeddingRow> {
   const w = await wedding(slug);
-  if (typeof token !== 'string' || token !== w.host_token) throw new HttpError(403, 'Only the host can do that.');
+  if (typeof token !== 'string' || !token || !safeEqual(token, w.host_token)) throw new HttpError(403, 'Only the host can do that.');
   return w;
 }
 
@@ -157,6 +159,145 @@ designRouter.post('/weddings/:slug/music', async (req, res) => {
   const audio = await generateMusic(prompt);
   const id = await saveAsset(w.id, 'music', audio.mime_type, audio.data, prompt);
   res.json({ id });
+});
+
+// ── AI Studio: Logo / monogram (§7) ─────────────────────────────────────────
+
+const LOGO_STYLES: Record<string, string> = {
+  classic: 'gold-foil intertwined initials inside an ornate circular mandala crest',
+  floral: 'elegant serif initials entwined with delicate marigold and jasmine blossoms',
+  modern: 'minimalist fine-line geometric monogram with refined luxury typography',
+};
+
+designRouter.post('/weddings/:slug/logo', async (req, res) => {
+  const w = await hostWedding(req.params.slug, req.body?.t ?? req.body?.host_token);
+  const styleKey = typeof req.body?.style === 'string' && LOGO_STYLES[req.body.style] ? req.body.style : 'classic';
+  const i1 = (w.draft.partner1_name || 'A').trim()[0]?.toUpperCase() || 'A';
+  const i2 = (w.draft.partner2_name || 'B').trim()[0]?.toUpperCase() || 'B';
+  const initials = `${i1} & ${i2}`;
+  const palette = MOTIFS[w.draft.style] ?? 'deep maroon, warm gold and ivory';
+  const system = loadSkills('card-designer');
+
+  const variants = [
+    'symmetrical crest composition',
+    'graceful emblem with subtle ornamental flourish',
+    'clean editorial seal with balanced spacing',
+  ];
+
+  const made = (
+    await Promise.all(
+      variants.map(async (v) => {
+        try {
+          const prompt = [
+            `Design an Indian wedding monogram logo featuring the initials "${initials}".`,
+            `Style: ${LOGO_STYLES[styleKey]}, ${v}.`,
+            `Palette inspired by: ${palette}.`,
+            `Centered square 1:1 composition on a solid, plain warm cream background (#FBF7F1) with generous margin.`,
+            `Only the letters "${initials}" — no other words, dates, watermarks or extra text.`,
+          ].join(' ');
+          const img = await generateImage({ system, input: prompt, aspect_ratio: '1:1' });
+          const id = await saveAsset(w.id, 'logo', img.mime_type, img.data, prompt, styleKey);
+          return { id, style: styleKey, url: `/api/assets/${id}` };
+        } catch (err) {
+          console.warn('[logo]', (err as Error).message);
+          return null;
+        }
+      }),
+    )
+  ).filter((x): x is { id: string; style: string; url: string } => Boolean(x));
+
+  if (!made.length) throw new HttpError(502, 'Could not generate logos right now. Please retry.');
+  res.json({ logos: made });
+});
+
+designRouter.get('/host/:slug/logos', async (req, res) => {
+  const w = await hostWedding(req.params.slug, req.query.t);
+  const db = await getDb();
+  const rows = await db.query<{ id: string; label: string | null; created_at: string }>(
+    "SELECT id, label, created_at FROM assets WHERE wedding_id = $1 AND kind = 'logo' ORDER BY created_at DESC LIMIT 24",
+    [w.id],
+  );
+  res.json({
+    selected_logo_id: w.draft.logo_asset_id ?? null,
+    logos: rows.map((r) => ({ id: r.id, style: r.label || 'classic', url: `/api/assets/${r.id}`, created_at: r.created_at })),
+  });
+});
+
+designRouter.post('/host/:slug/logo/select', async (req, res) => {
+  const w = await hostWedding(req.params.slug, req.body?.t);
+  const assetId = typeof req.body?.asset_id === 'string' ? req.body.asset_id.trim() : '';
+  if (!/^[0-9a-f-]{36}$/i.test(assetId)) throw new HttpError(400, 'Invalid logo id.');
+  const db = await getDb();
+  const found = await db.query<{ id: string }>(
+    "SELECT id FROM assets WHERE id = $1 AND wedding_id = $2 AND kind = 'logo'",
+    [assetId, w.id],
+  );
+  if (!found[0]) throw new HttpError(404, 'Logo not found.');
+  const next = normalizeDraft({ ...w.draft, logo_asset_id: assetId });
+  await db.query('UPDATE weddings SET draft = $1, updated_at = now() WHERE id = $2', [JSON.stringify(next), w.id]);
+  res.json({ ok: true, logo_asset_id: assetId });
+});
+
+// ── AI Studio: WhatsApp message writer (§7) ─────────────────────────────────
+
+const MSG_KINDS = new Set(['invite', 'save-the-date', 'reminder', 'thank-you', 'announcement']);
+const MSG_LANGS = new Set(['English', 'Hindi', 'Hinglish']);
+const MSG_TONES = new Set(['formal', 'warm', 'shayari', 'filmi', 'funny']);
+
+designRouter.post('/host/:slug/messages', async (req, res) => {
+  const w = await hostWedding(req.params.slug, req.body?.t);
+  const kind = typeof req.body?.kind === 'string' && MSG_KINDS.has(req.body.kind) ? req.body.kind : 'invite';
+  const language = typeof req.body?.language === 'string' && MSG_LANGS.has(req.body.language) ? req.body.language : 'Hinglish';
+  const tone = typeof req.body?.tone === 'string' && MSG_TONES.has(req.body.tone) ? req.body.tone : 'warm';
+  const extra = typeof req.body?.extra === 'string' ? req.body.extra.trim().slice(0, 300) : '';
+
+  const inviteUrl = `${req.protocol}://${req.get('host')}/i/${w.slug}`;
+  const pub = publicDetails(w.draft);
+
+  const result = await generateJson<{ variants: { text: string }[] }>({
+    system:
+      'You write warm, shareable WhatsApp messages for an Indian wedding host. ' +
+      'Return exactly 3 distinct variants. Each variant MUST:\n' +
+      '- include the placeholder {name} for the guest\'s name;\n' +
+      '- stay strictly under 580 characters;\n' +
+      '- include the wedding date(s), main venue, and the exact invitation URL provided;\n' +
+      '- match the requested message kind, language (use Devanagari for Hindi, Roman script for Hinglish), and tone.\n' +
+      'Use only the wedding details provided. Never invent details.',
+    input: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          kind,
+          language,
+          tone,
+          extra_note: extra || undefined,
+          invitation_url: inviteUrl,
+          wedding: pub,
+        }),
+      },
+    ],
+    schema: {
+      type: 'object',
+      properties: {
+        variants: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { text: { type: 'string' } },
+            required: ['text'],
+          },
+        },
+      },
+      required: ['variants'],
+    },
+  });
+
+  const variants = (Array.isArray(result.variants) ? result.variants : [])
+    .slice(0, 3)
+    .map((v) => ({ text: String(v?.text ?? '').trim().slice(0, 600) }))
+    .filter((v) => v.text);
+  if (!variants.length) throw new HttpError(502, 'Could not write messages right now. Please retry.');
+  res.json({ variants });
 });
 
 designRouter.get('/assets/:id', async (req, res) => {

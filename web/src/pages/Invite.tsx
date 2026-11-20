@@ -136,6 +136,13 @@ export function Invite({ slug }: { slug: string }) {
       <section className="hero">
         <div className="hero-art" />
         <div className="hero-panel reveal in">
+          {d.logo_asset_id && (
+            <img
+              src={`/api/assets/${d.logo_asset_id}`}
+              alt={`${d.partner1_name} and ${d.partner2_name} monogram`}
+              style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', margin: '0 auto 12px', display: 'block', border: '1.5px solid var(--i-accent)' }}
+            />
+          )}
           {guestName && <p className="dear">Dear {guestName},</p>}
           {d.invite_line && <p className="invite-line">{d.invite_line}</p>}
           <p className="eyebrow-i">Together with their families</p>
