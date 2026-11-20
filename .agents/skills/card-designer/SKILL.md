@@ -31,6 +31,20 @@ central area for text. Always include:
 For a custom style the host described, translate it into motifs and a palette
 in the same way.
 
+## Ceremony art (one per ceremony, landscape 4:3)
+
+A still-life scene for each ceremony card on the invitation, in the same style
+and palette as the card, with no faces and no text:
+
+| Ceremony | Scene |
+|---|---|
+| Haldi / Pithi / Gaye Holud | brass bowls of turmeric, marigolds, sunlit yellow |
+| Mehendi | henna patterns and cones, green leaves, mogra |
+| Sangeet / Garba / Cocktail | dhol, fairy lights, marigold toran, night jewel tones |
+| Pheras / Wedding / Baraat | mandap with the sacred fire, red and gold drapes |
+| Reception | chandeliers, rose arches, candlelight |
+| Tilak / Roka / Engagement | rings on silk, thali with diyas, soft pink and gold |
+
 ## Couple illustration (optional, only with an uploaded photo)
 
 Redraw the couple in the chosen style (for royal-rajasthani: a Mughal-Rajput

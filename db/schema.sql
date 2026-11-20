@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS assets (
   created_at  timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS assets_wedding_kind ON assets (wedding_id, kind, created_at DESC);
+-- Per-ceremony artwork (kind event_art) is labelled with the ceremony name.
+ALTER TABLE assets ADD COLUMN IF NOT EXISTS label text;
+ALTER TABLE assets DROP CONSTRAINT IF EXISTS assets_kind_check;
+ALTER TABLE assets ADD CONSTRAINT assets_kind_check CHECK (kind IN ('card_art', 'couple_art', 'event_art', 'music', 'upload'));
 
 CREATE TABLE IF NOT EXISTS rsvps (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),

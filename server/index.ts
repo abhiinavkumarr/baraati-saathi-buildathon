@@ -29,7 +29,7 @@ app.get('/api/health', async (_req, res) => {
 
 const TEN_MIN = 10 * 60_000;
 app.use('/api/intake', rateLimit('intake', 40, TEN_MIN));
-app.use(/^\/api\/weddings\/[^/]+\/(art|music)$/, rateLimit('media', 12, TEN_MIN));
+app.use(/^\/api\/weddings\/[^/]+\/(art|music|event-art)$/, rateLimit('media', 30, TEN_MIN));
 app.use(/^\/api\/weddings\/[^/]+\/rsvp$/, rateLimit('rsvp', 20, TEN_MIN));
 app.use(/^\/api\/saathi\/[^/]+\/chat$/, rateLimit('chat', 40, TEN_MIN));
 app.use(/^\/api\/saathi\/[^/]+\/live-token$/, rateLimit('live', 15, TEN_MIN));

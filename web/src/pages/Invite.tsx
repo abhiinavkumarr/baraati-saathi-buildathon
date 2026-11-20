@@ -7,7 +7,7 @@ import { Saathi } from '../Saathi.tsx';
 export interface PublicWedding {
   slug: string;
   draft: WeddingDraft;
-  assets: { card_art?: string; couple_art?: string; music?: string };
+  assets: { card_art?: string; couple_art?: string; music?: string; events?: Record<string, string> };
   announcements?: { text_en: string; text_hi: string | null; created_at: string }[];
 }
 
@@ -39,7 +39,10 @@ export function Invite({ slug }: { slug: string }) {
   // In the host's preview, keep checking so new artwork appears as it's made.
   const { w, error } = useWedding(slug, preview ? 4000 : 0);
   const [open, setOpen] = useState(preview);
+  const [gate, setGate] = useState<'closed' | 'opening' | 'gone'>(preview ? 'gone' : 'closed');
   const [playing, setPlaying] = useState(false);
+  // Personal links from the host's control room carry the guest's name: ?g=Nani%20ji
+  const guestName = (new URLSearchParams(location.search).get('g') ?? '').trim().slice(0, 40);
   const audio = useRef<HTMLAudioElement | null>(null);
 
   const musicUrl = w?.assets.music ? `/api/assets/${w.assets.music}` : '';
@@ -82,27 +85,34 @@ export function Invite({ slug }: { slug: string }) {
 
   return (
     <div className={`invite ${open ? 'is-open' : ''}`} style={vars}>
-      {!open && (
+      {gate !== 'gone' && (
         <button
-          className="gate"
+          className={`gate ${gate}`}
           aria-label={`Open the wedding invitation of ${d.partner1_name} and ${d.partner2_name}`}
+          disabled={gate === 'opening'}
           onClick={() => {
+            setGate('opening');
             setOpen(true);
             toggleMusic(true);
+            setTimeout(() => setGate('gone'), 1500);
           }}
         >
-          <span className="gate-art" />
+          {/* Two doors, each showing its half of the artwork, swing open. */}
+          <span className="door left"><span className="door-art" /></span>
+          <span className="door right"><span className="door-art" /></span>
           <span className="gate-card">
-            <span className="gate-eyebrow">You're invited</span>
+            <span className="gate-eyebrow">{guestName ? `${guestName}, you're invited` : "You're invited"}</span>
             <span className="gate-names">{d.partner1_name} <i>&amp;</i> {d.partner2_name}</span>
             <span className="gate-cta">Tap to open</span>
           </span>
         </button>
       )}
+      {open && !preview && <Petals colors={[t.accent, '#f4a300', '#e8476b', '#fff3d6']} />}
 
       <section className="hero">
         <div className="hero-art" />
         <div className="hero-panel reveal in">
+          {guestName && <p className="dear">Dear {guestName},</p>}
           {d.invite_line && <p className="invite-line">{d.invite_line}</p>}
           <p className="eyebrow-i">Together with their families</p>
           <h1 className="names">
@@ -115,6 +125,7 @@ export function Invite({ slug }: { slug: string }) {
           )}
           <p className="date-line">{dateLine}</p>
           {d.city && <p className="city">{d.city}</p>}
+          <Countdown events={d.events} />
         </div>
         <span className="scroll-hint" aria-hidden>Scroll</span>
       </section>
@@ -129,23 +140,47 @@ export function Invite({ slug }: { slug: string }) {
 
       <section className="schedule">
         <h2 className="section-title reveal">The celebrations</h2>
-        {d.events.map((e, i) => (
-          <article key={i} className="event reveal" style={{ transitionDelay: `${(i % 3) * 80}ms` }}>
-            <p className="event-date">{fmtDate(e.date)}{e.start_time ? ` · ${fmtTime(e.start_time)}` : ''}</p>
-            <h3>{e.name}</h3>
-            {e.venue_name && <p className="venue">{e.venue_name}</p>}
-            {e.venue_address && (
-              <a className="map" target="_blank" rel="noreferrer" aria-label={`Directions to ${e.venue_name || e.name} (opens Google Maps)`}
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${e.venue_name} ${e.venue_address}`)}`}>
-                Directions
-              </a>
+        {days(d.events).map(([date, evs], di) => (
+          <div key={date || di} className="day">
+            {date && (
+              <p className="day-label reveal">
+                <span>Day {di + 1}</span> {fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}
+              </p>
             )}
-            {e.dress_code && <p className="dress">Dress code: {e.dress_code}</p>}
-          </article>
+            {evs.map((e, i) => {
+              const artId = w.assets.events?.[e.name];
+              return (
+                <article key={e.name + i} className={`event reveal ${artId ? 'has-art' : ''}`} style={{ transitionDelay: `${(i % 3) * 90}ms` }}>
+                  {artId && (
+                    <div className="event-art" style={{ backgroundImage: `url(/api/assets/${artId})` }} role="img" aria-label={`Artwork for the ${e.name}`} />
+                  )}
+                  <div className="event-body">
+                    <p className="event-date">{e.start_time ? fmtTime(e.start_time) : 'Time to be announced'}</p>
+                    <h3>{e.name}</h3>
+                    {e.venue_name && <p className="venue">{e.venue_name}</p>}
+                    {e.dress_code && <p className="dress">Dress code: {e.dress_code}</p>}
+                    <div className="event-links">
+                      {e.venue_address && (
+                        <a className="map" target="_blank" rel="noreferrer" aria-label={`Directions to ${e.venue_name || e.name} (opens Google Maps)`}
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${e.venue_name} ${e.venue_address}`)}`}>
+                          Directions
+                        </a>
+                      )}
+                      {e.date && (
+                        <a className="map" href={icsUrl(e, `${d.partner1_name} & ${d.partner2_name}`)} download={`${e.name}.ics`} aria-label={`Add the ${e.name} to your calendar`}>
+                          Add to calendar
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         ))}
       </section>
 
-      <Rsvp slug={slug} disabled={preview} />
+      <Rsvp slug={slug} disabled={preview} guestName={guestName} />
       {open && <Saathi slug={slug} coupleNames={`${d.partner1_name} & ${d.partner2_name}`} />}
 
       {musicUrl && (
@@ -158,11 +193,11 @@ export function Invite({ slug }: { slug: string }) {
   );
 }
 
-function Rsvp({ slug, disabled }: { slug: string; disabled: boolean }) {
+function Rsvp({ slug, disabled, guestName = '' }: { slug: string; disabled: boolean; guestName?: string }) {
   const tokenKey = `guest:${slug}`;
   const [token, setToken] = useState(() => storage(tokenKey) ?? '');
   const [status, setStatus] = useState<'yes' | 'no' | 'maybe' | ''>('');
-  const [name, setName] = useState('');
+  const [name, setName] = useState(guestName);
   const [phone, setPhone] = useState('');
   const [party, setParty] = useState(1);
   const [note, setNote] = useState('');
@@ -276,6 +311,84 @@ function Update({ a }: { a: { text_en: string; text_hi: string | null; created_a
         <small>{when}</small>
       </div>
     </section>
+  );
+}
+
+type Ev = WeddingDraft['events'][number];
+
+/** Ceremonies grouped by day, in date order (undated ones last). */
+function days(events: Ev[]): [string, Ev[]][] {
+  const map = new Map<string, Ev[]>();
+  for (const e of [...events].sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || (a.start_time || '').localeCompare(b.start_time || ''))) {
+    map.set(e.date, [...(map.get(e.date) ?? []), e]);
+  }
+  return [...map];
+}
+
+function icsUrl(e: Ev, couple: string): string {
+  const stamp = (e.date + (e.start_time ? `T${e.start_time.replace(':', '')}00` : '')).replace(/-/g, '');
+  const lines = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Baraati Saathi//EN', 'BEGIN:VEVENT',
+    `UID:${stamp}-${e.name.replace(/\W/g, '')}@saathi.baraati.co.in`,
+    e.start_time ? `DTSTART;TZID=Asia/Kolkata:${stamp}` : `DTSTART;VALUE=DATE:${stamp}`,
+    e.start_time ? 'DURATION:PT3H' : 'DURATION:P1D',
+    `SUMMARY:${e.name} · ${couple}`,
+    `LOCATION:${[e.venue_name, e.venue_address].filter(Boolean).join(', ')}`,
+    e.dress_code ? `DESCRIPTION:Dress code: ${e.dress_code}` : '',
+    'END:VEVENT', 'END:VCALENDAR',
+  ].filter(Boolean);
+  return `data:text/calendar;charset=utf-8,${encodeURIComponent(lines.join('\r\n'))}`;
+}
+
+/** Days, hours, minutes and seconds to the first ceremony (IST). */
+function Countdown({ events }: { events: Ev[] }) {
+  const first = [...events].filter((e) => e.date).sort((a, b) => (a.date + a.start_time).localeCompare(b.date + b.start_time))[0];
+  const target = first ? Date.parse(`${first.date}T${first.start_time || '10:00'}:00+05:30`) : NaN;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  if (!Number.isFinite(target) || target < now) return null;
+  const s = Math.floor((target - now) / 1000);
+  const parts: [number, string][] = [[Math.floor(s / 86400), 'days'], [Math.floor(s / 3600) % 24, 'hours'], [Math.floor(s / 60) % 60, 'min'], [s % 60, 'sec']];
+  return (
+    <div className="countdown" role="timer" aria-label={`${parts[0][0]} days to go`}>
+      {parts.map(([n, l]) => (
+        <span key={l}><b>{String(n).padStart(2, '0')}</b><small>{l}</small></span>
+      ))}
+    </div>
+  );
+}
+
+/** Marigold and rose petals drifting down once the doors open. */
+function Petals({ colors }: { colors: string[] }) {
+  const petals = useMemo(
+    () => Array.from({ length: 26 }, (_, i) => ({
+      left: Math.random() * 100,
+      delay: Math.random() * 2.5,
+      dur: 5 + Math.random() * 4,
+      size: 9 + Math.random() * 10,
+      sway: (Math.random() * 2 - 1) * 60,
+      spin: Math.random() * 720 - 360,
+      color: colors[i % colors.length],
+    })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  return (
+    <div className="petals" aria-hidden>
+      {petals.map((p, i) => (
+        <span
+          key={i}
+          style={{
+            left: `${p.left}%`, width: p.size, height: p.size * 1.4, background: p.color,
+            animationDelay: `${p.delay}s`, animationDuration: `${p.dur}s`,
+            ['--sway' as string]: `${p.sway}px`, ['--spin' as string]: `${p.spin}deg`,
+          }}
+        />
+      ))}
+    </div>
   );
 }
 

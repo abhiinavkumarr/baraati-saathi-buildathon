@@ -64,14 +64,56 @@ function artBrief(d: WeddingDraft): string {
   ].filter(Boolean).join(' ');
 }
 
-async function saveAsset(weddingId: string, kind: string, mime: string, base64: string, prompt: string) {
+async function saveAsset(weddingId: string, kind: string, mime: string, base64: string, prompt: string, label: string | null = null) {
   const db = await getDb();
   const rows = await db.query<{ id: string }>(
-    'INSERT INTO assets (wedding_id, kind, mime_type, data, prompt) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-    [weddingId, kind, mime, Buffer.from(base64, 'base64'), prompt],
+    'INSERT INTO assets (wedding_id, kind, mime_type, data, prompt, label) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+    [weddingId, kind, mime, Buffer.from(base64, 'base64'), prompt, label],
   );
   return rows[0].id;
 }
+
+// Per-ceremony scenes; mirrors the table in .agents/skills/card-designer/SKILL.md.
+const CEREMONY: [RegExp, string][] = [
+  [/haldi|pithi|gaye holud|nalangu/i, 'turmeric haldi ceremony: brass bowls of turmeric paste, marigold garlands and petals, bright sunlit yellow and saffron'],
+  [/mehendi|mehndi/i, 'mehendi ceremony: intricate henna patterns, cones of henna, green leaves, mogra flowers, emerald and gold'],
+  [/sangeet|garba|cocktail|music/i, 'sangeet night: dhol drums, strings of fairy lights, marigold toran, dancing silhouettes far away, deep jewel tones at night'],
+  [/phera|wedding|lagna|vivah|muhurtham|biye|baraat|shaadi/i, 'wedding ceremony: a decorated mandap with the sacred fire, marigold and rose garlands, red and gold silk drapes'],
+  [/reception|dinner|party/i, 'grand reception: crystal chandeliers, floral arches of roses, candlelight, ivory and champagne gold'],
+  [/tilak|roka|sagai|engagement|ring/i, 'engagement ceremony: rings on a silk cushion, thali with diyas and rice, roses, soft pink and gold'],
+];
+
+function ceremonyBrief(d: WeddingDraft, eventName: string): string {
+  const scene = CEREMONY.find(([re]) => re.test(eventName))?.[1] ?? `${eventName}, an Indian wedding celebration with flowers, diyas and festive drapes`;
+  return [
+    `A painterly still-life illustration for the "${eventName}" of an Indian wedding: ${scene}.`,
+    `Match the invitation's ${d.style || 'royal-rajasthani'} style (${MOTIFS[d.style] ?? 'rich festive Indian palette'}).`,
+    'Landscape 4:3, no people\'s faces, soft cinematic lighting, shallow depth of field, elegant and premium.',
+    'Absolutely no text, letters, numbers, script, watermark or signature anywhere.',
+  ].join(' ');
+}
+
+// Art for every ceremony, three at a time. Each failure is skipped, not fatal.
+designRouter.post('/weddings/:slug/event-art', async (req, res) => {
+  const w = await hostWedding(req.params.slug, req.body?.host_token);
+  const system = loadSkills('card-designer');
+  const events = w.draft.events.slice(0, 6);
+  const made: string[] = [];
+  for (let i = 0; i < events.length; i += 3) {
+    await Promise.all(events.slice(i, i + 3).map(async (e) => {
+      try {
+        const brief = ceremonyBrief(w.draft, e.name);
+        const img = await generateImage({ system, input: brief, aspect_ratio: '4:3' });
+        await saveAsset(w.id, 'event_art', img.mime_type, img.data, brief, e.name);
+        made.push(e.name);
+      } catch (err) {
+        console.warn('[event-art]', e.name, (err as Error).message);
+      }
+    }));
+  }
+  if (!made.length) throw new HttpError(502, 'Ceremony artwork could not be made. Please retry.');
+  res.json({ made });
+});
 
 designRouter.post('/weddings/:slug/art', async (req, res) => {
   const w = await hostWedding(req.params.slug, req.body?.host_token);
@@ -127,16 +169,21 @@ designRouter.get('/assets/:id', async (req, res) => {
   res.send(Buffer.from(rows[0].data));
 });
 
-/** Latest asset of each kind, for the invitation page. */
+/** Latest asset of each kind (and per ceremony), for the invitation page. */
 export async function latestAssets(weddingId: string) {
   const db = await getDb();
-  const rows = await db.query<{ id: string; kind: string }>(
-    `SELECT DISTINCT ON (kind) id, kind FROM assets
-      WHERE wedding_id = $1 AND kind IN ('card_art', 'couple_art', 'music')
-      ORDER BY kind, created_at DESC`,
+  const rows = await db.query<{ id: string; kind: string; label: string | null }>(
+    `SELECT DISTINCT ON (kind, coalesce(label, '')) id, kind, label FROM assets
+      WHERE wedding_id = $1 AND kind IN ('card_art', 'couple_art', 'music', 'event_art')
+      ORDER BY kind, coalesce(label, ''), created_at DESC`,
     [weddingId],
   );
-  return Object.fromEntries(rows.map((r) => [r.kind, r.id])) as Partial<Record<'card_art' | 'couple_art' | 'music', string>>;
+  const out: Partial<Record<'card_art' | 'couple_art' | 'music', string>> & { events?: Record<string, string> } = {};
+  for (const r of rows) {
+    if (r.kind === 'event_art') (out.events ??= {})[r.label ?? ''] = r.id;
+    else out[r.kind as 'card_art' | 'couple_art' | 'music'] = r.id;
+  }
+  return out;
 }
 
 designRouter.get('/qr', async (req, res) => {

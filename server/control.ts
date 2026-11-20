@@ -386,7 +386,8 @@ controlRouter.post('/host/:slug/apply', async (req, res) => {
         .filter((g) => inAudience(g, audience))
         .map((g) => {
           const num = waNumber(g.phone);
-          const text = `Namaste ${g.name} 🙏\n\n${text_hi ? `${text_hi}\n\n` : ''}${text_en}\n\n— ${couple}\n${invite}`;
+          // Their own link: the invitation greets them by name and pre-fills their RSVP.
+          const text = `Namaste ${g.name} 🙏\n\n${text_hi ? `${text_hi}\n\n` : ''}${text_en}\n\n— ${couple}\n${invite}?g=${encodeURIComponent(g.name)}`;
           return { name: g.name, phone: num ? `••••${num.slice(-4)}` : '', url: num ? `https://wa.me/${num}?text=${encodeURIComponent(text)}` : '' };
         });
       res.json({ ok: true, message: 'Published on the invitation. Saathi knows too.', whatsapp });

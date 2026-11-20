@@ -12,6 +12,7 @@ export function Studio({ slug }: { slug: string }) {
   const [art, setArt] = useState<Job>('idle');
   const [music, setMusic] = useState<Job>('idle');
   const [couple, setCouple] = useState<Job>('idle');
+  const [events, setEvents] = useState<Job>('idle');
   const [msg, setMsg] = useState('');
   const [frame, setFrame] = useState(0); // bump to reload the preview iframe
   const started = useRef(false);
@@ -20,10 +21,11 @@ export function Studio({ slug }: { slug: string }) {
   const inviteUrl = `${location.origin}/i/${slug}`;
   const hostUrl = `${location.origin}/h/${slug}?t=${encodeURIComponent(hostToken)}`;
 
-  async function run(kind: 'art' | 'music' | 'couple', set: (j: Job) => void, photo?: unknown) {
+  async function run(kind: 'art' | 'music' | 'couple' | 'events', set: (j: Job) => void, photo?: unknown) {
     set('working');
     try {
       if (kind === 'music') await post(`/api/weddings/${slug}/music`, { host_token: hostToken });
+      else if (kind === 'events') await post(`/api/weddings/${slug}/event-art`, { host_token: hostToken });
       else await post(`/api/weddings/${slug}/art`, { host_token: hostToken, kind: kind === 'couple' ? 'couple_art' : 'card_art', photo });
       set('done');
       setFrame((f) => f + 1);
@@ -42,6 +44,8 @@ export function Studio({ slug }: { slug: string }) {
     if (!w.assets.music) void run('music', setMusic);
     else setMusic('done');
     if (w.assets.couple_art) setCouple('done');
+    if (!w.assets.events || !Object.keys(w.assets.events).length) void run('events', setEvents);
+    else setEvents('done');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [w, hostToken]);
 
@@ -77,6 +81,7 @@ export function Studio({ slug }: { slug: string }) {
           <ul className="jobs">
             <JobRow label="Card artwork" sub="Nano Banana" state={art} onRetry={() => void run('art', setArt)} />
             <JobRow label="Invitation music" sub="Lyria" state={music} onRetry={() => void run('music', setMusic)} />
+            <JobRow label="Ceremony art" sub={`Nano Banana · one scene per ceremony (${w.draft.events.length})`} state={events} onRetry={() => void run('events', setEvents)} />
             <JobRow
               label="Couple illustration"
               sub="optional · from your photo"
