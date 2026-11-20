@@ -23,6 +23,9 @@ Google AI usage, security design and tests.
 
 ## Rules
 
+0. **Before every commit, run `npm run typecheck && npm test && npm run build`**
+   and fix anything that fails. CI runs the same three on every push. When a
+   change touches the UI, also open the page and check it at phone width.
 1. **IP boundary.** The organiser gets a right of first refusal on submitted
    material, so this repo must never contain code copied from the Baraati app
    (React Native app, guest web, Supabase backend). Connecting to Baraati means
