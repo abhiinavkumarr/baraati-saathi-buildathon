@@ -146,7 +146,7 @@ Rules:
 
 const ANSWER_SYSTEM = `You answer an Indian wedding host's question from query results.
 One or two short sentences, in the language and script the host used (English, Hindi or Roman Hinglish).
-Use only the rows given. Mention names when there are five or fewer. Never mention SQL or tables.`;
+Every row given already matches the question: never drop or second-guess a row, and never say "only" unless there is exactly one row. Use only the rows given. Mention names when there are five or fewer. Never mention SQL or tables.`;
 
 async function writeSql(question: string, priorError?: { sql: string; error: string }) {
   const input = [
