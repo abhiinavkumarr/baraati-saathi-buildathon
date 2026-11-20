@@ -5,7 +5,7 @@ import { getDb, type Db } from './db.ts';
 import { ALLOWED_MIME, HttpError, generateJson, toInputPart, type Attachment } from './gemini.ts';
 import { loadSkills } from './skills.ts';
 import { hostWeddingRow } from './insights.ts';
-import { makeToken, normalizeDraft } from './wedding.ts';
+import { makeToken, normalizeDraft, STYLES } from './wedding.ts';
 
 export const planningRouter = Router();
 
@@ -884,6 +884,17 @@ planningRouter.patch('/host/:slug/info', async (req, res) => {
   await db.query('UPDATE weddings SET draft = $1, updated_at = now() WHERE id = $2', [JSON.stringify(next), w.id]);
   res.json({ ok: true, info: next.info });
 });
+// Pick the invitation style in AI Studio (Create no longer asks for one).
+planningRouter.post('/host/:slug/style', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.body?.t);
+  const style = typeof req.body?.style === 'string' ? req.body.style : '';
+  if (!(STYLES as readonly string[]).includes(style)) throw new HttpError(400, 'Pick one of the invitation styles.');
+  const next = normalizeDraft({ ...w.draft, style });
+  const db = await getDb();
+  await db.query('UPDATE weddings SET draft = $1, style = $2, updated_at = now() WHERE id = $3', [JSON.stringify(next), style, w.id]);
+  res.json({ ok: true, style });
+});
+
 planningRouter.post('/host/:slug/questions/:id/answer', async (req, res) => {
   const w = await hostWeddingRow(req.params.slug, req.body?.t);
   const id = req.params.id;
