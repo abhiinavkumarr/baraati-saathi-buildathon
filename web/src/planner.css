@@ -1458,3 +1458,15 @@
   flex: 1;
   min-width: 180px;
 }
+
+/* Demo wedding banner on Create (/new) */
+.pl-demo-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+  background: var(--bg-warm);
+  border-color: var(--line-2);
+}

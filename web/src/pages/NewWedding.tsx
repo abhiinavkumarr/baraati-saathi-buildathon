@@ -4,6 +4,7 @@ import { navigate } from '../App.tsx';
 import { useWedding } from '../WeddingContext.tsx';
 import { ornamentUrl } from '../themes.ts';
 import { Create } from './Create.tsx';
+import { createSampleWedding } from './Login.tsx';
 import '../planner.css';
 
 const INDIAN_CITIES = [
@@ -63,7 +64,7 @@ function todayIso(): string {
 }
 
 export function NewWedding() {
-  const { session, refreshWeddings } = useWedding();
+  const { session, weddings, refreshWeddings, logout } = useWedding();
   const [intakeMode, setIntakeMode] = useState(false);
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
@@ -89,6 +90,7 @@ export function NewWedding() {
 
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [demoBusy, setDemoBusy] = useState(false);
 
   const today = todayIso();
 
@@ -290,6 +292,19 @@ export function NewWedding() {
     }
   }
 
+  async function openDemo() {
+    setDemoBusy(true);
+    setError('');
+    try {
+      const w = await createSampleWedding(session?.session);
+      await refreshWeddings();
+      navigate(`/w/${w.slug}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not open demo wedding.');
+      setDemoBusy(false);
+    }
+  }
+
   return (
     <div className="pl-page">
       <header className="topbar">
@@ -298,8 +313,21 @@ export function NewWedding() {
             <span className="wordmark">Baraati</span> <span className="tag">Saathi</span>
           </div>
           <div className="pl-user-bar">
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate('/weddings')}>
-              ← My weddings
+            {weddings.length > 0 && (
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate('/weddings')}>
+                ← My weddings
+              </button>
+            )}
+            {session?.user.name && <span className="pl-user-name muted small">{session.user.name}</span>}
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                logout();
+                navigate('/');
+              }}
+            >
+              Sign out
             </button>
           </div>
         </div>
@@ -319,6 +347,21 @@ export function NewWedding() {
             {intakeMode ? '← Back to 3-step form' : '✦ Start from your wedding card or a voice note'}
           </button>
         </div>
+
+        {!intakeMode && (
+          <section className="card card-sm pl-demo-banner" aria-label="Try the demo wedding">
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <span className="badge ai">✦ Demo wedding</span>
+              <h2 className="h3" style={{ margin: '6px 0 2px' }}>Just looking around? Explore the demo wedding</h2>
+              <p className="muted small" style={{ margin: 0 }}>
+                Open Meera &amp; Rohan&apos;s Jaipur wedding pre-loaded with 12 guests, 12 vendors, ₹30 L budget, tasks and Ask Saathi.
+              </p>
+            </div>
+            <button type="button" className="btn btn-primary btn-sm" disabled={busy || demoBusy} onClick={() => void openDemo()}>
+              {demoBusy ? 'Opening demo…' : 'Open demo wedding →'}
+            </button>
+          </section>
+        )}
 
         {intakeMode ? (
           <div className="pl-intake-wrap">

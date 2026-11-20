@@ -106,7 +106,8 @@ export function Login() {
     try {
       const s = await post<StoredSession>('/api/login', { name: name.trim(), contact: contact.trim() });
       setSession(s);
-      navigate('/weddings');
+      const list = await refreshWeddings(undefined, s);
+      navigate(list.length === 0 ? '/new' : '/weddings');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not sign in.');
       setBusy(false);

@@ -63,12 +63,17 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setSession = useCallback((s: StoredSession | null) => {
-    if (s) saveStoredSession(s);
-    else clearStoredSession();
+    if (s) {
+      saveStoredSession(s);
+      setLoading(true);
+    } else {
+      clearStoredSession();
+    }
     setSessionState(s);
     if (!s) {
       setWeddings([]);
       setPasscode('');
+      setLoading(false);
     }
   }, [setPasscode]);
 
