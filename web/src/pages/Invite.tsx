@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { post, type WeddingDraft } from '../api.ts';
+import { fileToAttachment, post, type Attachment, type WeddingDraft } from '../api.ts';
 import { ornamentUrl, themeFor } from '../themes.ts';
 import { fmtDate, fmtTime, storage } from '../format.ts';
 import { Saathi } from '../Saathi.tsx';
@@ -193,6 +193,28 @@ export function Invite({ slug }: { slug: string }) {
   );
 }
 
+interface ExtractedLogistics {
+  adults?: number;
+  children?: number;
+  arrival_date?: string;
+  arrival_time?: string;
+  arrival_mode?: string;
+  arrival_point?: string;
+  flight_or_train?: string;
+  ticket_passengers?: number;
+  needs_pickup?: boolean;
+  dietary?: string;
+  other?: string;
+}
+
+interface MyPlan {
+  name: string;
+  status: 'yes' | 'no' | 'maybe';
+  party_size: number;
+  note: string | null;
+  extracted: ExtractedLogistics | null;
+}
+
 function Rsvp({ slug, disabled, guestName = '' }: { slug: string; disabled: boolean; guestName?: string }) {
   const tokenKey = `guest:${slug}`;
   const [token, setToken] = useState(() => storage(tokenKey) ?? '');
@@ -201,14 +223,46 @@ function Rsvp({ slug, disabled, guestName = '' }: { slug: string; disabled: bool
   const [phone, setPhone] = useState('');
   const [party, setParty] = useState(1);
   const [note, setNote] = useState('');
+  const [ticket, setTicket] = useState<{ name: string; attachment: Attachment } | null>(null);
+  const [plan, setPlan] = useState<MyPlan | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(Boolean(token));
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!token || disabled) return;
+    let alive = true;
+    fetch(`/api/weddings/${slug}/my-plan?guest_token=${encodeURIComponent(token)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { rsvp?: MyPlan | null } | null) => {
+        if (!alive || !j?.rsvp) return;
+        setPlan(j.rsvp);
+        setStatus((s) => s || j.rsvp!.status);
+        setName((n) => n || j.rsvp!.name);
+        setParty(j.rsvp!.party_size || 1);
+        setNote((nt) => nt || j.rsvp!.note || '');
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [slug, token, disabled]);
 
   const notePlaceholder = useMemo(
     () => (status === 'no' ? 'Leave a message for the couple (optional)' : 'e.g. "Coming with mom and 2 kids, landing 6 pm on the 20th, need pickup"'),
     [status],
   );
+
+  async function onPickTicket(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Ticket file must be under 10 MB.');
+      return;
+    }
+    setError('');
+    const attachment = await fileToAttachment(file, file.name);
+    setTicket({ name: file.name, attachment });
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -216,11 +270,13 @@ function Rsvp({ slug, disabled, guestName = '' }: { slug: string; disabled: bool
     setBusy(true);
     setError('');
     try {
-      const r = await post<{ guest_token: string }>(`/api/weddings/${slug}/rsvp`, {
-        name, phone, status, party_size: party, note, guest_token: token,
+      const r = await post<{ guest_token: string; extracted?: ExtractedLogistics | null }>(`/api/weddings/${slug}/rsvp`, {
+        name, phone, status, party_size: party, note, guest_token: token, ticket: ticket?.attachment,
       });
       storage(tokenKey, r.guest_token);
       setToken(r.guest_token);
+      setPlan({ name, status: status as 'yes' | 'no' | 'maybe', party_size: party, note: note || null, extracted: r.extracted ?? null });
+      setTicket(null);
       setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not send your RSVP.');
@@ -230,13 +286,40 @@ function Rsvp({ slug, disabled, guestName = '' }: { slug: string; disabled: bool
   }
 
   if (done) {
+    const ex = plan?.extracted;
+    const statusLabel = plan?.status === 'yes'
+      ? `Joyfully attending · ${plan.party_size} ${plan.party_size === 1 ? 'person' : 'people'}`
+      : plan?.status === 'maybe'
+        ? `Not sure yet · ${plan.party_size} ${plan.party_size === 1 ? 'person' : 'people'}`
+        : plan?.status === 'no' ? "Can't make it" : 'Your RSVP has reached the family.';
+    const hasDetails = Boolean(ex && (ex.flight_or_train || ex.arrival_date || ex.arrival_point || ex.needs_pickup || ex.dietary));
     return (
       <section className="rsvp reveal in" aria-live="polite">
-        <h2 className="section-title">Thank you! <span aria-hidden>🙏</span></h2>
-        <p>Your RSVP has reached the family.</p>
-        <div className="after-rsvp">
-          <button className="pill" onClick={() => setDone(false)}>Change my answer</button>
-          <a className="pill solid" href="https://baraati.co.in" target="_blank" rel="noreferrer">Get the Baraati app</a>
+        <h2 className="section-title">{plan?.name ? `${plan.name}'s plan` : 'Thank you!'} <span aria-hidden>🙏</span></h2>
+        <div className="my-plan">
+          <p className="my-plan-status">{statusLabel}</p>
+          {hasDetails && ex && (
+            <ul className="my-plan-list">
+              {ex.flight_or_train && <li><b>Travel:</b> {ex.flight_or_train}{ex.arrival_mode ? ` (${ex.arrival_mode})` : ''}</li>}
+              {ex.arrival_date && (
+                <li>
+                  <b>Arrival:</b> {fmtDate(ex.arrival_date, { day: 'numeric', month: 'short' })}
+                  {ex.arrival_time ? ` at ${fmtTime(ex.arrival_time)}` : ''}
+                  {ex.arrival_point ? ` · ${ex.arrival_point}` : ''}
+                </li>
+              )}
+              {ex.needs_pickup && <li><b>Pickup:</b> Requested from {ex.arrival_point || 'arrival point'}</li>}
+              {ex.dietary && <li><b>Food:</b> {ex.dietary}</li>}
+            </ul>
+          )}
+          {ex?.ticket_passengers && plan && ex.ticket_passengers > 0 && ex.ticket_passengers !== plan.party_size ? (
+            <p className="my-plan-warn">Note: your ticket shows {ex.ticket_passengers} passengers, while your RSVP lists {plan.party_size}.</p>
+          ) : null}
+          <p className="my-plan-hint">Ask Saathi below anytime about ceremonies, dress codes, or your pickup.</p>
+          <div className="after-rsvp">
+            <button className="pill" onClick={() => setDone(false)}>Update RSVP / ticket</button>
+            <a className="pill solid" href="https://baraati.co.in" target="_blank" rel="noreferrer">Get the Baraati app</a>
+          </div>
         </div>
       </section>
     );
@@ -264,6 +347,19 @@ function Rsvp({ slug, disabled, guestName = '' }: { slug: string; disabled: bool
               </label>
             )}
             <textarea rows={3} aria-label={status === 'no' ? 'Message for the couple' : 'Anything the family should know: who is coming, arrival, food'} placeholder={notePlaceholder} value={note} onChange={(e) => setNote(e.target.value)} />
+            {status !== 'no' && (
+              <div className="rsvp-ticket">
+                <label className="ticket-btn">
+                  <span>{ticket ? `📎 ${ticket.name}` : '🎫 Upload flight or train ticket (optional)'}</span>
+                  <input type="file" accept="image/*,application/pdf" onChange={(e) => void onPickTicket(e)} hidden />
+                </label>
+                {ticket ? (
+                  <button type="button" className="ticket-clear" onClick={() => setTicket(null)} aria-label="Remove ticket">Remove</button>
+                ) : (
+                  <small>Saathi reads only arrival time &amp; flight/train number for pickup.</small>
+                )}
+              </div>
+            )}
             {error && <p className="error" role="alert">{error}</p>}
             <button className="rsvp-send" disabled={busy || disabled}>
               {disabled ? 'RSVP (preview)' : busy ? 'Sending…' : 'Send RSVP'}

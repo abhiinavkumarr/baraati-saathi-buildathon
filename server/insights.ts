@@ -28,6 +28,7 @@ Table guests (one row per RSVP; phone numbers are not available):
   arrival_date date, arrival_time text ('HH:MM' 24h or NULL),
   arrival_mode text ('flight' | 'train' | 'car' | 'bus' | NULL),
   arrival_point text (e.g. 'Udaipur airport' or NULL),
+  flight_or_train text (e.g. '6E 2145' or NULL), ticket_passengers int (passengers on uploaded ticket or NULL),
   needs_pickup boolean, dietary text (e.g. 'Jain', 'vegan', 'nut allergy' or NULL),
   note text (the guest's own words), responded_at timestamptz
 Table events (the wedding's ceremonies):
@@ -92,6 +93,7 @@ export async function runScoped(db: Db, weddingId: string, draft: WeddingDraft, 
     await q(`CREATE TEMP TABLE guests (
       name text, status text, party_size int, adults int, children int,
       arrival_date date, arrival_time text, arrival_mode text, arrival_point text,
+      flight_or_train text, ticket_passengers int,
       needs_pickup boolean, dietary text, note text, responded_at timestamptz) ON COMMIT DROP`);
     await q(
       `INSERT INTO guests
@@ -100,7 +102,9 @@ export async function runScoped(db: Db, weddingId: string, draft: WeddingDraft, 
               CASE WHEN extracted->>'children' ~ '^[0-9]+$' THEN (extracted->>'children')::int END,
               CASE WHEN extracted->>'arrival_date' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN (extracted->>'arrival_date')::date END,
               NULLIF(extracted->>'arrival_time', ''), NULLIF(lower(extracted->>'arrival_mode'), ''),
-              NULLIF(extracted->>'arrival_point', ''), COALESCE(extracted->>'needs_pickup' = 'true', false),
+              NULLIF(extracted->>'arrival_point', ''), NULLIF(extracted->>'flight_or_train', ''),
+              CASE WHEN extracted->>'ticket_passengers' ~ '^[0-9]+$' AND (extracted->>'ticket_passengers')::int > 0 THEN (extracted->>'ticket_passengers')::int END,
+              COALESCE(extracted->>'needs_pickup' = 'true', false),
               NULLIF(extracted->>'dietary', ''), NULLIF(note, ''), created_at
          FROM rsvps WHERE wedding_id = $1`,
       [weddingId],

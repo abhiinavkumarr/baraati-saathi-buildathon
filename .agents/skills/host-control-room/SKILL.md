@@ -24,6 +24,9 @@ to three short sentences: the cards you create carry the detail.
 - `propose_info_card`: a standing answer every guest's Saathi will use
   ("Is there parking?" → "Valet at the main gate").
 - `propose_question_answer`: answer a guest's open question by its id.
+- `propose_reminders`: draft personalised Hindi/Hinglish/English WhatsApp reminders
+  for specific guests (e.g. guests who replied `maybe` or haven't confirmed),
+  tailored to each person's relation or tone.
 
 ## How to work
 1. **Nothing changes without the host.** Every `propose_*` call creates a card

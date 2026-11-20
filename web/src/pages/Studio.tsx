@@ -6,8 +6,18 @@ import { useWedding } from './Invite.tsx';
 
 type Job = 'idle' | 'working' | 'done' | 'failed';
 
-export function Studio({ slug }: { slug: string }) {
-  const hostToken = storage(`host:${slug}`) ?? new URLSearchParams(location.search).get('t') ?? '';
+export function Studio({
+  slug,
+  tokenOverride,
+  embedded = false,
+  onOpenDashboard,
+}: {
+  slug: string;
+  tokenOverride?: string;
+  embedded?: boolean;
+  onOpenDashboard?: () => void;
+}) {
+  const hostToken = tokenOverride ?? storage(`host:${slug}`) ?? new URLSearchParams(location.search).get('t') ?? '';
   const { w } = useWedding(slug, 5000);
   const [art, setArt] = useState<Job>('idle');
   const [music, setMusic] = useState<Job>('idle');
@@ -69,9 +79,11 @@ export function Studio({ slug }: { slug: string }) {
 
   return (
     <main className="studio">
-      <header className="brand">
-        <span className="wordmark"><b>B</b>ARAATI</span> <span className="tag">Saathi</span>
-      </header>
+      {!embedded && (
+        <header className="brand">
+          <span className="wordmark"><b>B</b>ARAATI</span> <span className="tag">Saathi</span>
+        </header>
+      )}
 
       <div className="studio-grid">
         <section className="studio-side">
@@ -109,7 +121,11 @@ export function Studio({ slug }: { slug: string }) {
               <a className="pill solid" href={`https://wa.me/?text=${waText}`} target="_blank" rel="noreferrer">Share on WhatsApp</a>
               <CopyButton text={inviteUrl} />
               <button className="pill" onClick={() => void download()}>Download card</button>
-              <a className="pill" href={hostUrl}>Guest dashboard →</a>
+              {onOpenDashboard ? (
+                <button className="pill" onClick={onOpenDashboard}>Control room →</button>
+              ) : (
+                <a className="pill" href={hostUrl}>Guest dashboard →</a>
+              )}
             </div>
           </div>
           <p className="muted small">Guests open the link in any browser and RSVP. No app needed.</p>

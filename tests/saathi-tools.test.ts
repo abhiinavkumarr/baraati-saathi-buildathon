@@ -23,9 +23,14 @@ before(async () => {
       [slug, JSON.stringify(draft)],
     );
     await db.query(
-      `INSERT INTO rsvps (wedding_id, guest_token, name, phone, status, party_size)
-       VALUES ($1, $2, $3, '9876543210', 'yes', 2)`,
-      [w.id, `guest-${slug}`, slug === 'riya-kabir' ? 'Nani ji' : 'Stranger'],
+      `INSERT INTO rsvps (wedding_id, guest_token, name, phone, status, party_size, extracted)
+       VALUES ($1, $2, $3, '9876543210', 'yes', 2, $4)`,
+      [
+        w.id,
+        `guest-${slug}`,
+        slug === 'riya-kabir' ? 'Nani ji' : 'Stranger',
+        JSON.stringify({ flight_or_train: '6E 2145', arrival_date: '2027-02-12', needs_pickup: true }),
+      ],
     );
   }
 });
@@ -37,10 +42,12 @@ test('public details hold only what the host published', () => {
   assert.ok(!json.includes('9876543210'));
 });
 
-test('a guest sees their own RSVP', async () => {
+test('a guest sees their own RSVP and extracted travel plan', async () => {
   const ctx = await context('riya-kabir', 'guest-riya-kabir');
-  const r = (await runTool(ctx, 'get_my_rsvp', {})) as { rsvp: { name: string } };
+  const r = (await runTool(ctx, 'get_my_rsvp', {})) as { rsvp: { name: string; extracted: { flight_or_train: string; needs_pickup: boolean } } };
   assert.equal(r.rsvp.name, 'Nani ji');
+  assert.equal(r.rsvp.extracted.flight_or_train, '6E 2145');
+  assert.equal(r.rsvp.extracted.needs_pickup, true);
 });
 
 test("another wedding's guest token reads nothing here", async () => {

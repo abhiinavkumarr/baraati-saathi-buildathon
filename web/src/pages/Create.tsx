@@ -29,7 +29,13 @@ const OPENERS = {
   scratch: 'Namaste! Let\'s make your wedding card together. Who is getting married? Aap Hindi mein bhi bol sakte hain.',
 };
 
-export function Create() {
+export function Create({
+  embedded = false,
+  onCreated,
+}: {
+  embedded?: boolean;
+  onCreated?: (slug: string, hostToken: string) => void;
+} = {}) {
   const [mode, setMode] = useState<'card' | 'scratch' | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState<WeddingDraft>(EMPTY);
@@ -130,7 +136,12 @@ export function Create() {
       } catch {
         /* storage blocked; the host link is still shown later */
       }
-      navigate(`/studio/${r.slug}`);
+      if (onCreated) {
+        setBusy(false);
+        onCreated(r.slug, r.host_token);
+      } else {
+        navigate(`/studio/${r.slug}`);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save the wedding.');
       setBusy(false);
@@ -139,9 +150,11 @@ export function Create() {
 
   return (
     <main className="create">
-      <header className="brand">
-        <span className="wordmark"><b>B</b>ARAATI</span> <span className="tag">Saathi</span>
-      </header>
+      {!embedded && (
+        <header className="brand">
+          <span className="wordmark"><b>B</b>ARAATI</span> <span className="tag">Saathi</span>
+        </header>
+      )}
 
       <input
         ref={fileInput}

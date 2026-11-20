@@ -3,7 +3,7 @@
 import { Router } from 'express';
 import { getDb } from './db.ts';
 import { loadSkills } from './skills.ts';
-import { ALLOWED_MIME, HttpError, generateImage, generateJson, generateMusic, type Attachment } from './gemini.ts';
+import { ALLOWED_MIME, HttpError, generateImage, generateJson, generateMusic, toInputPart, type Attachment } from './gemini.ts';
 import { makeToken, normalizeDraft, type WeddingDraft } from './wedding.ts';
 import QRCode from 'qrcode';
 
@@ -204,30 +204,50 @@ const extractSchema = {
     arrival_time: { type: 'string', description: 'HH:MM 24h or empty' },
     arrival_mode: { type: 'string', description: 'flight, train, car, bus, or empty' },
     arrival_point: { type: 'string', description: 'e.g. Udaipur airport, or empty' },
+    flight_or_train: { type: 'string', description: 'Flight or train number/name from ticket or note, e.g. 6E 2145, or empty' },
+    ticket_passengers: { type: 'integer', description: 'Number of passengers on an uploaded ticket, or 0 if no ticket' },
     needs_pickup: { type: 'boolean' },
     dietary: { type: 'string', description: 'e.g. Jain, vegan, nut allergy, or empty' },
     other: { type: 'string', description: 'Anything else the host should know, or empty' },
   },
-  required: ['adults', 'children', 'arrival_date', 'arrival_time', 'arrival_mode', 'arrival_point', 'needs_pickup', 'dietary', 'other'],
+  required: [
+    'adults', 'children', 'arrival_date', 'arrival_time', 'arrival_mode',
+    'arrival_point', 'flight_or_train', 'ticket_passengers', 'needs_pickup', 'dietary', 'other',
+  ],
 };
 
-// Structure the guest's free-text note with Gemini (structured output). A next
-// step is moving this into AlloyDB AI's AI.EXTRACT() so it runs in SQL.
-async function extractNote(rsvpId: string, note: string, partySize: number, d: WeddingDraft) {
+// Structure the guest's free-text note and optional travel ticket with Gemini
+// (structured output). A next step is moving this into AlloyDB AI's AI.EXTRACT().
+async function extractRsvpLogistics(
+  rsvpId: string,
+  note: string,
+  partySize: number,
+  d: WeddingDraft,
+  ticket?: Attachment,
+): Promise<Record<string, unknown> | null> {
   try {
     const schedule = d.events.map((e) => `${e.name}: ${e.date}`).join('; ');
+    const parts: unknown[] = [{
+      type: 'text',
+      text:
+        `Wedding schedule: ${schedule}. Party size given: ${partySize}. Note: ${note || '(none)'}` +
+        (ticket ? '\nA travel ticket or boarding pass is attached. Extract arrival date, time, mode, airport/station, flight_or_train number, and ticket_passengers count.' : ''),
+    }];
+    if (ticket) parts.push(toInputPart(ticket));
     const extracted = await generateJson<Record<string, unknown>>({
       system:
-        'You extract logistics from an Indian wedding guest\'s RSVP note (English, Hindi or Hinglish). ' +
-        'Only use what the note says; unknown values are empty strings, 0, or false. ' +
+        'You extract logistics from an Indian wedding guest\'s RSVP note (English, Hindi or Hinglish) and any attached travel ticket/boarding pass. ' +
+        'Only use what the note or ticket says; unknown values are empty strings, 0, or false. ' +
         'Resolve partial dates ("12th", "12 tareekh", "the day before the sangeet") against the wedding schedule.',
-      input: [{ type: 'text', text: `Wedding schedule: ${schedule}. Party size given: ${partySize}. Note: ${note}` }],
+      input: parts,
       schema: extractSchema,
     });
     const db = await getDb();
     await db.query('UPDATE rsvps SET extracted = $1, updated_at = now() WHERE id = $2', [JSON.stringify(extracted), rsvpId]);
+    return extracted;
   } catch (e) {
-    console.warn('[rsvp] note extraction failed', (e as Error).message);
+    console.warn('[rsvp] logistics extraction failed', (e as Error).message);
+    return null;
   }
 }
 
@@ -240,6 +260,19 @@ designRouter.post('/weddings/:slug/rsvp', async (req, res) => {
   const phone = typeof b.phone === 'string' ? b.phone.replace(/[^\d+]/g, '').slice(0, 16) : '';
   const party = Math.min(20, Math.max(1, Number.parseInt(b.party_size, 10) || 1));
   const note = typeof b.note === 'string' ? b.note.trim().slice(0, 600) : '';
+  const rawTicket = b.ticket as Attachment | undefined;
+  let ticket: Attachment | undefined;
+  if (rawTicket) {
+    if (
+      typeof rawTicket.data !== 'string' ||
+      !/^(image\/|application\/pdf$)/.test(rawTicket.mime_type ?? '') ||
+      !ALLOWED_MIME.test(rawTicket.mime_type) ||
+      rawTicket.data.length > 15_000_000
+    ) {
+      throw new HttpError(400, 'Please upload a valid ticket image (JPG/PNG) or PDF under 10 MB.');
+    }
+    ticket = rawTicket;
+  }
   const db = await getDb();
 
   // A guest who already RSVP'd on this device updates their own row only.
@@ -250,8 +283,8 @@ designRouter.post('/weddings/:slug/rsvp', async (req, res) => {
       [name, phone, status, party, note, w.id, b.guest_token],
     );
     if (rows[0]) {
-      if (note) void extractNote(rows[0].id, note, party, w.draft);
-      res.json({ guest_token: b.guest_token });
+      const extracted = note || ticket ? await extractRsvpLogistics(rows[0].id, note, party, w.draft, ticket) : null;
+      res.json({ guest_token: b.guest_token, extracted });
       return;
     }
   }
@@ -261,8 +294,23 @@ designRouter.post('/weddings/:slug/rsvp', async (req, res) => {
      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
     [w.id, token, name, phone, status, party, note],
   );
-  if (note) void extractNote(rows[0].id, note, party, w.draft);
-  res.status(201).json({ guest_token: token });
+  const extracted = note || ticket ? await extractRsvpLogistics(rows[0].id, note, party, w.draft, ticket) : null;
+  res.status(201).json({ guest_token: token, extracted });
+});
+
+designRouter.get('/weddings/:slug/my-plan', async (req, res) => {
+  const w = await wedding(req.params.slug);
+  const guestToken = typeof req.query.guest_token === 'string' ? req.query.guest_token.slice(0, 64) : '';
+  if (!guestToken) {
+    res.json({ rsvp: null });
+    return;
+  }
+  const db = await getDb();
+  const rows = await db.query(
+    'SELECT name, status, party_size, note, extracted, updated_at FROM rsvps WHERE wedding_id = $1 AND guest_token = $2',
+    [w.id, guestToken],
+  );
+  res.json({ rsvp: rows[0] ?? null });
 });
 
 // ── Host dashboard ────────────────────────────────────────────────────────

@@ -81,6 +81,15 @@
 .party { display: flex; align-items: center; justify-content: space-between; font-weight: 600; }
 .party input { width: 80px; }
 .rsvp-send { border: 0; border-radius: 100px; padding: 14px; font-weight: 700; background: var(--i-ink); color: #fff; }
+.rsvp-ticket { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1.5px dashed rgba(0,0,0,.22); border-radius: 12px; background: rgba(255,255,255,.7); }
+.rsvp-ticket .ticket-btn { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--i-ink); }
+.rsvp-ticket small { font-size: 12.5px; color: var(--i-soft); }
+.rsvp-ticket .ticket-clear { align-self: flex-start; border: 0; background: none; color: var(--rose); font-size: 13px; font-weight: 600; padding: 0; }
+.my-plan { background: var(--i-panel); border-radius: 22px; padding: 22px; text-align: center; box-shadow: 0 14px 34px rgba(0,0,0,.18); }
+.my-plan-status { font-weight: 700; font-size: 17px; margin: 0 0 12px; color: var(--i-ink); }
+.my-plan-list { list-style: none; padding: 0; margin: 0 0 14px; text-align: left; display: flex; flex-direction: column; gap: 8px; background: rgba(255,255,255,.75); border-radius: 14px; padding: 12px 14px; font-size: 14.5px; }
+.my-plan-warn { margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: #fff4d6; color: #7a4b00; font-size: 13.5px; text-align: left; }
+.my-plan-hint { margin: 0; font-size: 13.5px; color: var(--i-soft); }
 .after-rsvp { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
 .pill { display: inline-flex; align-items: center; justify-content: center; border: 1.5px solid var(--line); background: #fff; color: var(--ink); border-radius: 100px; padding: 10px 18px; font-weight: 600; text-decoration: none; font-size: 14px; }
 .pill.solid { background: var(--ink); color: #fff; border-color: var(--ink); }
@@ -131,6 +140,7 @@
 .badge.yes { color: #1e7a4f; }
 .badge.no { color: var(--rose); }
 .badge.ai { background: #efeaff; border-color: #d8ceff; color: #4b3bb5; }
+.badge.warn { background: #fff3cd; border-color: #f0cf65; color: #7a4b00; font-weight: 600; }
 .note { margin: 6px 0 0; font-size: 14px; color: var(--ink-2); font-style: italic; }
 .q-list li { padding: 12px 14px; border-radius: 14px; background: var(--cream); }
 

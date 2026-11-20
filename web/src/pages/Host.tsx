@@ -17,7 +17,8 @@ interface Rsvp {
   created_at: string;
   extracted: {
     adults?: number; children?: number; arrival_date?: string; arrival_time?: string;
-    arrival_mode?: string; arrival_point?: string; needs_pickup?: boolean; dietary?: string; other?: string;
+    arrival_mode?: string; arrival_point?: string; flight_or_train?: string;
+    ticket_passengers?: number; needs_pickup?: boolean; dietary?: string; other?: string;
   } | null;
 }
 interface Question { id: string; question: string; answer: string | null; status: 'open' | 'answered'; created_at: string }
@@ -34,12 +35,21 @@ interface Briefing {
   briefing: { headline: string; items: { title: string; detail: string; prompt: string }[] } | null;
   announcements: { id: string; text_en: string; text_hi: string | null; audience: string; created_at: string }[];
 }
-interface Proposal { id: string; kind: 'event_change' | 'announcement' | 'info_card' | 'question_answer'; title: string; detail: string; payload: Record<string, unknown> }
+interface Proposal { id: string; kind: 'event_change' | 'announcement' | 'info_card' | 'question_answer' | 'reminders'; title: string; detail: string; payload: Record<string, unknown> }
 interface QueryData { question: string; sql: string; columns: string[]; rows: Record<string, unknown>[]; ms: number }
 interface Msg { role: 'host' | 'saathi'; text: string; voice?: boolean; proposals?: Proposal[]; data?: QueryData | null }
 
-export function Host({ slug }: { slug: string }) {
-  const token = new URLSearchParams(location.search).get('t') ?? '';
+export function Host({
+  slug,
+  tokenOverride,
+  embedded = false,
+}: {
+  slug: string;
+  tokenOverride?: string;
+  embedded?: boolean;
+  onOpenStudio?: () => void;
+}) {
+  const token = tokenOverride ?? new URLSearchParams(location.search).get('t') ?? '';
   const [data, setData] = useState<HostData | null>(null);
   const [brief, setBrief] = useState<Briefing | null>(null);
   const [error, setError] = useState('');
@@ -79,16 +89,18 @@ export function Host({ slug }: { slug: string }) {
 
   return (
     <main className="cr">
-      <header className="cr-top">
-        <div className="cr-brand">
-          <span className="wordmark"><b>B</b>ARAATI</span> <span className="tag">Saathi</span>
-        </div>
-        <nav className="cr-links" aria-label="Wedding pages">
-          <a href={`/i/${slug}`} target="_blank" rel="noreferrer">Invitation ↗</a>
-          <a href={`/studio/${slug}?t=${encodeURIComponent(token)}`}>Studio</a>
-          <span className="live"><span className="live-dot" aria-hidden>●</span> Live</span>
-        </nav>
-      </header>
+      {!embedded && (
+        <header className="cr-top">
+          <div className="cr-brand">
+            <span className="wordmark"><b>B</b>ARAATI</span> <span className="tag">Saathi</span>
+          </div>
+          <nav className="cr-links" aria-label="Wedding pages">
+            <a href={`/i/${slug}`} target="_blank" rel="noreferrer">Invitation ↗</a>
+            <a href={`/studio/${slug}?t=${encodeURIComponent(token)}`}>Studio</a>
+            <span className="live"><span className="live-dot" aria-hidden>●</span> Live</span>
+          </nav>
+        </header>
+      )}
 
       <section className="cr-hero">
         <div>
@@ -167,6 +179,10 @@ export function Host({ slug }: { slug: string }) {
                   <div className="badges">
                     <span className={`badge ${r.status}`}>{r.status === 'yes' ? 'Coming' : r.status === 'maybe' ? 'Maybe' : "Can't come"}</span>
                     {r.status !== 'no' && <span className="badge">{r.party_size} {r.party_size === 1 ? 'person' : 'people'}</span>}
+                    {r.extracted?.flight_or_train && <span className="badge ai">✈️ {r.extracted.flight_or_train}</span>}
+                    {r.extracted?.ticket_passengers && r.extracted.ticket_passengers > 0 && r.extracted.ticket_passengers !== r.party_size ? (
+                      <span className="badge warn">Ticket: {r.extracted.ticket_passengers} vs RSVP: {r.party_size}</span>
+                    ) : null}
                     {r.extracted?.needs_pickup && <span className="badge ai">Pickup{r.extracted.arrival_point ? ` · ${r.extracted.arrival_point}` : ''}</span>}
                     {r.extracted?.arrival_date && <span className="badge ai">Arrives {fmtDate(r.extracted.arrival_date, { day: 'numeric', month: 'short' })}{r.extracted.arrival_time ? ` ${fmtTime(r.extracted.arrival_time)}` : ''}</span>}
                     {r.extracted?.children ? <span className="badge ai">{r.extracted.children} {r.extracted.children === 1 ? 'child' : 'children'}</span> : null}
@@ -383,6 +399,7 @@ const KIND: Record<Proposal['kind'], { icon: string; label: string; cta: string 
   announcement: { icon: '📣', label: 'Update for guests', cta: 'Publish' },
   info_card: { icon: '💡', label: 'Info card', cta: 'Save' },
   question_answer: { icon: '💬', label: 'Answer a guest', cta: 'Send answer' },
+  reminders: { icon: '💌', label: 'Guest reminders', cta: 'Prepare WhatsApp links' },
 };
 
 function ProposalCard({ p, slug, token, onApplied }: { p: Proposal; slug: string; token: string; onApplied: () => void }) {
@@ -391,7 +408,12 @@ function ProposalCard({ p, slug, token, onApplied }: { p: Proposal; slug: string
   const [wa, setWa] = useState<{ name: string; phone: string; url: string }[]>([]);
   const [lang, setLang] = useState<'en' | 'hi'>('en');
   const k = KIND[p.kind];
-  const hi = typeof p.payload.text_hi === 'string' ? p.payload.text_hi : '';
+  const reminderItems = p.kind === 'reminders' && Array.isArray(p.payload.items)
+    ? (p.payload.items as { guest_name: string; message_en: string; message_hi?: string }[])
+    : [];
+  const hi = typeof p.payload.text_hi === 'string'
+    ? p.payload.text_hi
+    : reminderItems.some((r) => r.message_hi) ? reminderItems.map((r) => `${r.guest_name}: ${r.message_hi || r.message_en}`).join('\n\n') : '';
 
   async function apply() {
     setState('busy');
@@ -416,7 +438,7 @@ function ProposalCard({ p, slug, token, onApplied }: { p: Proposal; slug: string
           <small>{k.label}</small>
           <b>{p.title}</b>
         </div>
-        {p.kind === 'announcement' && hi && (
+        {(p.kind === 'announcement' || p.kind === 'reminders') && hi && (
           <div className="pc-lang" role="group" aria-label="Language">
             <button aria-pressed={lang === 'en'} onClick={() => setLang('en')}>EN</button>
             <button aria-pressed={lang === 'hi'} onClick={() => setLang('hi')}>हिं</button>

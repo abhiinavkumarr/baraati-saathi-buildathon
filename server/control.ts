@@ -24,7 +24,7 @@ const AUDIENCE_LABEL: Record<Audience, string> = {
 
 export interface Proposal {
   id: string;
-  kind: 'event_change' | 'announcement' | 'info_card' | 'question_answer';
+  kind: 'event_change' | 'announcement' | 'info_card' | 'question_answer' | 'reminders';
   title: string;
   detail: string;
   payload: Record<string, unknown>;
@@ -41,7 +41,8 @@ interface GuestRow {
   created_at: string;
   extracted: {
     adults?: number; children?: number; arrival_date?: string; arrival_time?: string;
-    arrival_mode?: string; arrival_point?: string; needs_pickup?: boolean; dietary?: string;
+    arrival_mode?: string; arrival_point?: string; flight_or_train?: string;
+    ticket_passengers?: number; needs_pickup?: boolean; dietary?: string;
   } | null;
 }
 
@@ -157,6 +158,29 @@ const TOOLS = [
     description: 'Answer one of the guests\' open questions (by id from the context). Becomes an info card for everyone.',
     parameters: { type: 'object', properties: { question_id: { type: 'string' }, answer: { type: 'string' } }, required: ['question_id', 'answer'] },
   },
+  {
+    name: 'propose_reminders',
+    description:
+      'Draft personalised WhatsApp reminders for specific guests (such as guests who said maybe or need to confirm), tailored to each guest in English/Hinglish and Hindi. The host confirms before links are prepared.',
+    parameters: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              guest_name: { type: 'string', description: 'Exact guest name from the guest list' },
+              message_en: { type: 'string', description: 'Warm, personal reminder in English or Hinglish' },
+              message_hi: { type: 'string', description: 'Natural Hindi in Devanagari (optional)' },
+            },
+            required: ['guest_name', 'message_en'],
+          },
+        },
+      },
+      required: ['items'],
+    },
+  },
 ];
 
 const pid = () => randomBytes(6).toString('hex');
@@ -240,6 +264,30 @@ async function runTool(
       turn.proposals.push({ id: pid(), kind: 'question_answer', title: `Answer: “${q.question}”`, detail: answer, payload: { question_id: q.id, answer } });
       return { ok: true, proposed: true };
     }
+    case 'propose_reminders': {
+      const raw = Array.isArray(args.items) ? args.items : [];
+      const matched: { guest_name: string; message_en: string; message_hi: string }[] = [];
+      for (const it of raw.slice(0, 40)) {
+        if (!it || typeof it !== 'object') continue;
+        const r = it as Record<string, unknown>;
+        const gName = str(r.guest_name, 80);
+        const message_en = str(r.message_en, 500);
+        const message_hi = str(r.message_hi, 500);
+        if (!gName || !message_en) continue;
+        const found = rows.find((g) => g.name.toLowerCase() === gName.toLowerCase())
+          ?? rows.find((g) => g.name.toLowerCase().includes(gName.toLowerCase()));
+        if (found) matched.push({ guest_name: found.name, message_en, message_hi });
+      }
+      if (!matched.length) return { error: 'No matching guests found on the guest list.' };
+      turn.proposals.push({
+        id: pid(),
+        kind: 'reminders',
+        title: `Personalised reminders (${matched.length})`,
+        detail: matched.map((m) => `${m.guest_name}: ${m.message_en}`).join('\n\n'),
+        payload: { items: matched },
+      });
+      return { ok: true, proposed: true, recipients: matched.length };
+    }
     default:
       return { error: `Unknown tool ${name}` };
   }
@@ -286,6 +334,7 @@ controlRouter.post('/host/:slug/agent', async (req, res) => {
     `Schedule: ${JSON.stringify(d.events.map(({ name, date, start_time, venue_name, dress_code, notes }) => ({ name, date, start_time, venue_name, dress_code, notes })))}`,
     `Info cards guests already see: ${JSON.stringify(d.info.map((i) => i.question))}`,
     `Headline numbers: ${JSON.stringify({ replied: stats.replied, yes: stats.yes, maybe: stats.maybe, no: stats.no, expected_people: stats.heads, children: stats.kids, pickups: stats.pickups })}`,
+    `Maybe guests (awaiting confirmation): ${rows.filter((g) => g.status === 'maybe').map((g) => g.name).join(', ') || 'none'}`,
     `Open guest questions (id: question): ${openQs.length ? openQs.map((q) => `${q.id}: ${q.question}`).join(' | ') : 'none'}`,
     `Recent announcements: ${ann.length ? ann.map((a) => a.text_en).join(' | ') : 'none'}`,
   ].join('\n');
@@ -414,6 +463,28 @@ controlRouter.post('/host/:slug/apply', async (req, res) => {
       res.json({ ok: true, message: 'Answered. Saathi now tells every guest who asks.' });
       return;
     }
+    case 'reminders': {
+      const raw = Array.isArray(payload.items) ? payload.items : [];
+      const rows = await guestRows(w.id);
+      const invite = `${req.protocol}://${req.get('host')}/i/${w.slug}`;
+      const couple = `${draft.partner1_name} & ${draft.partner2_name}`;
+      const whatsapp = raw
+        .map((it) => {
+          const r = (it ?? {}) as Record<string, unknown>;
+          const gName = str(r.guest_name, 80);
+          const message_en = str(r.message_en, 500);
+          const message_hi = str(r.message_hi, 500);
+          const g = rows.find((x) => x.name.toLowerCase() === gName.toLowerCase());
+          if (!g || !message_en) return null;
+          const num = waNumber(g.phone);
+          const text = `Namaste ${g.name} 🙏\n\n${message_hi ? `${message_hi}\n\n` : ''}${message_en}\n\n— ${couple}\n${invite}?g=${encodeURIComponent(g.name)}`;
+          return { name: g.name, phone: num ? `••••${num.slice(-4)}` : '', url: num ? `https://wa.me/${num}?text=${encodeURIComponent(text)}` : '' };
+        })
+        .filter((x): x is { name: string; phone: string; url: string } => Boolean(x));
+      if (!whatsapp.length) throw new HttpError(400, 'No matching guests for reminders.');
+      res.json({ ok: true, message: `${whatsapp.length} personalised reminders ready to send.`, whatsapp });
+      return;
+    }
     default:
       throw new HttpError(400, 'Unknown action.');
   }
@@ -447,7 +518,10 @@ controlRouter.get('/host/:slug/briefing', async (req, res) => {
           maybe_guests: rows.filter((g) => g.status === 'maybe').map((g) => g.name),
           arrivals: rows.filter((g) => g.status !== 'no' && g.extracted?.arrival_date).map((g) => ({
             name: g.name, people: g.party_size, date: g.extracted!.arrival_date, time: g.extracted!.arrival_time,
-            point: g.extracted!.arrival_point, mode: g.extracted!.arrival_mode, pickup: g.extracted!.needs_pickup,
+            point: g.extracted!.arrival_point, mode: g.extracted!.arrival_mode,
+            flight: g.extracted!.flight_or_train || undefined,
+            ticket_passengers: g.extracted!.ticket_passengers || undefined,
+            pickup: g.extracted!.needs_pickup,
           })),
           open_questions: openQs.map((q) => q.question),
         }),

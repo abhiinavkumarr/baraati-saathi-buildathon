@@ -42,7 +42,7 @@ export const TOOL_DEFS = [
   },
   {
     name: 'get_my_rsvp',
-    description: 'The current guest\'s own RSVP (status, party size, note). Only ever returns this guest\'s own answer.',
+    description: 'The current guest\'s own RSVP (status, party size, note, and extracted travel/pickup/flight/dietary plan). Only ever returns this guest\'s own answer.',
     parameters: { type: 'object', properties: {} },
   },
   {
@@ -91,7 +91,7 @@ export async function runTool(ctx: Ctx, name: string, args: Record<string, unkno
     case 'get_my_rsvp': {
       if (!ctx.guestToken) return { rsvp: null, hint: 'The guest has not RSVP\'d on this device yet.' };
       const rows = await db.query(
-        'SELECT name, status, party_size, note FROM rsvps WHERE wedding_id = $1 AND guest_token = $2',
+        'SELECT name, status, party_size, note, extracted FROM rsvps WHERE wedding_id = $1 AND guest_token = $2',
         [ctx.weddingId, ctx.guestToken],
       );
       return { rsvp: rows[0] ?? null };
