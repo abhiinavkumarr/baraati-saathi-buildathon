@@ -1,65 +1,223 @@
 # Baraati Saathi
 
-**From a wedding card to a concierge in three minutes.** An AI layer for Indian
-weddings, built at the Google DeepMind × Google Cloud Startup Buildathon India 2026
-by [Baraati](https://baraati.co.in), a wedding app live on iOS, Android and the web.
+[![CI](https://github.com/abhiinavkumarr/baraati-saathi-buildathon/actions/workflows/ci.yml/badge.svg)](https://github.com/abhiinavkumarr/baraati-saathi-buildathon/actions/workflows/ci.yml)
 
-1. **Card → wedding.** Upload a photo or PDF of your card, or tell Saathi about
-   your wedding by chat or voice note, in English, Hindi or Hinglish. Gemini
-   builds the full ceremony schedule, suggesting ceremonies from your tradition.
-2. **An invitation that moves.** Nano Banana paints card artwork in a regional
-   style, Lyria composes the background music, and guests RSVP on a live link.
-3. **Saathi, by voice.** Guests, including grandparents, ask in Hindi
-   ("Haldi kab hai? Pickup hai?") and hear the answer from the wedding's own data.
-   Anything Saathi can't answer goes to the host's inbox.
+**From a wedding card to a voice concierge in three minutes.** An AI layer for
+Indian weddings, built for the Google DeepMind × Google Cloud Startup Buildathon
+India 2026 by [Baraati](https://baraati.co.in), a wedding app live on iOS,
+Android and the web. This repository is a new, separate product: it contains
+no Baraati app code.
 
-## Google AI and Google Cloud
+**Live:** https://baraati-saathi-570792946314.asia-south1.run.app
+(demo invitation: [/i/riya-kabir-b4fc738a](https://baraati-saathi-570792946314.asia-south1.run.app/i/riya-kabir-b4fc738a);
+host links are in the submission form, since they carry the host's secret token).
 
-| Piece | Used for |
+---
+
+## The problem
+
+An Indian wedding runs on a printed card, a WhatsApp forward and a family
+phone tree. Running Baraati, we kept running into the same three problems:
+
+1. **Setting up is work.** The details already exist on the printed card, but
+   every app makes the family type them in again, ceremony by ceremony.
+2. **Digital invitations are flat.** A PDF of the card says nothing about the
+   region, the music or the family, and guests can't answer it.
+3. **The host's phone never stops.** Hundreds of guests ask "Haldi kab hai?",
+   "Pickup hai?", "Bachche aa sakte hain?", often grandparents who would rather
+   speak Hindi than type. And the host can't answer simple questions about
+   their own guest list ("who lands on the 12th and needs a pickup?") without
+   reading every RSVP.
+
+## What Saathi does
+
+| Act | For | What happens |
+|---|---|---|
+| **1. Card → wedding** | Host | Upload a photo or PDF of the card, or describe the wedding by chat or a voice note, in English, Hindi or Hinglish. Gemini reads every ceremony, date and venue, suggests ceremonies from the family's tradition, and asks only for what's missing. No card? Saathi builds one from the conversation. |
+| **2. An invitation that moves** | Host → guests | Nano Banana paints card art in a regional style (Rajasthani, South Indian temple, Bengali alpana, Punjabi phulkari…) and can turn a couple photo into a miniature-painting illustration; Lyria composes the invitation's music. Guests open one link in any browser, no install, and RSVP in their own words ("coming with mom, landing 6 pm on the 12th, need pickup"). Gemini turns that note into arrival time, pickup, children and dietary needs. |
+| **3. Saathi, by voice** | Guests | Guests ask by text or by voice (Gemini Live) in Hindi or English and get answers from this wedding's own data. Saathi can change the guest's own RSVP after confirming, and sends anything it can't answer to the host. When the host replies, the answer becomes an info card every guest's Saathi now knows. |
+| **Ask your guest list** | Host | "Kitne log Jain khana khayenge?" Gemini writes one SQL query, AlloyDB runs it on this wedding's RSVPs in a locked-down sandbox, and Gemini answers in the host's language, with the table and the exact query shown. |
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Browser
+    H[Host: Create · Studio · Dashboard]
+    G[Guest: Invitation · RSVP · Saathi]
+  end
+
+  subgraph CR[Cloud Run · asia-south1]
+    API[Express API<br/>rate limits · host and guest tokens]
+    SK[[Agent Skills<br/>.agents/skills/*/SKILL.md]]
+    PX[AlloyDB Auth Proxy]
+  end
+
+  subgraph GAI[Google AI · Gemini API]
+    F[Gemini 3.8 / 3.6 Flash<br/>Interactions API]
+    NB[Nano Banana 2.1]
+    LY[Lyria 3 Clip]
+    LV[Gemini 3.8 Live]
+  end
+
+  DB[(AlloyDB for PostgreSQL)]
+  SM[(Secret Manager)]
+
+  H -- card photo, PDF, voice note --> API
+  API -- structured output --> F
+  API -- card art, couple art --> NB
+  API -- invitation music --> LY
+  G -- RSVP, chat --> API
+  API -- function calling --> F
+  G -- single-use Live token --> LV
+  LV -. tool calls relayed .-> API
+  API --- SK
+  API --> PX --> DB
+  SM -. API key, DB password .-> CR
+```
+
+* **One server, three agents.** The intake agent, the card designer and Saathi
+  each load their instructions from an Agent Skill (`.agents/skills/`), the
+  same format Antigravity reads. The server lists skills by name and
+  description and loads a skill's full body only when an agent needs it.
+* **Tools run on the server, always.** Saathi's four tools
+  (`get_wedding_details`, `get_my_rsvp`, `update_rsvp`, `ask_host`) take the
+  wedding and guest from the request, never from the model's arguments. Voice
+  runs browser ↔ Gemini Live directly for low latency (16 kHz mic in, 24 kHz
+  speech out), but every tool call is relayed back to the server to execute.
+* **Generated media in the database.** Card art, illustrations and music are
+  stored in AlloyDB (`bytea`) to keep the prototype to one dependency; Cloud
+  Storage is the next step.
+* **Demo-day resilience.** Every Gemini call has a model fallback chain, a
+  retry on overload and an HTTP timeout. If AlloyDB is unreachable the server
+  falls back to an embedded PGlite database and `/api/health` says so.
+
+## Google AI and Google Cloud, in depth
+
+| Piece | How it's used |
 |---|---|
-| Gemini 3.8 Flash (Interactions API) | Reading cards and PDFs, the intake conversation, Saathi's reasoning |
-| Gemini 3.8 Live | Real-time Hindi / English voice |
-| Nano Banana 2.1 | Card artwork and couple illustration |
-| Lyria 3 Clip | 30-second instrumental invitation music |
-| AlloyDB for PostgreSQL | Weddings, RSVPs, guest questions and generated media, reached from Cloud Run through the AlloyDB Auth Proxy |
-| Cloud Run | Hosting |
-| Agent Skills (`.agents/skills/`) | The app's agents load their instructions from these SKILL.md files |
+| **Gemini 3.8 Flash** (Interactions API, `v1beta`) | Multimodal intake: card images, PDFs and voice notes go in as typed parts; the reply is **structured output** against a JSON Schema of the whole wedding (`server/wedding.ts`), with thinking level `low` for speed. Also writes the guest-list SQL, and extracts logistics from RSVP notes, resolving "12 tareekh" against the wedding's schedule. |
+| **Gemini 3.6 Flash** | Saathi's text chat (fastest first, `thinking_level: minimal`) with **function calling** over 4 tools and up to 5 tool hops. The wedding's public details are pre-fetched into the system prompt, so most answers take one call. |
+| **Gemini 4 "Hydrogen"** | Last link in the text fallback chain. |
+| **Gemini 3.8 Live** | Real-time voice. The server mints a **single-use ephemeral token** whose model, system instruction and tools are locked (`liveConnectConstraints`), so the browser can't repurpose it. Input and output transcription give captions; barge-in (`interrupted`) stops playback. |
+| **Nano Banana 2.1** | Card background art (9:16, regional motif table in the `card-designer` skill, no text in the art so typography stays editable) and a couple illustration from a photo (image + text input). Falls back to Gemini 3.1 Flash Image. |
+| **Lyria 3 Clip** | A 30-second instrumental theme per style: shehnai and dholak for Rajasthani, nadaswaram for South Indian, and so on. |
+| **AlloyDB for PostgreSQL** | System of record (weddings, RSVPs, questions, media) and the engine for **Ask your guest list**, reached through the Auth Proxy bundled in the container. |
+| **Cloud Run** | Hosting: one container with the API, the web app and the Auth Proxy. |
+| **Secret Manager** | Gemini API key and database password; nothing secret in env files or images. |
+| **Agent Skills** | `wedding-intake`, `card-designer`, `saathi-concierge`, `guest-data-guardrails`. |
+| **Antigravity** | Development IDE, with the Google Cloud Data Agent Kit plugin. |
+
+## Ask your guest list: model-written SQL, safely
+
+Letting a model write SQL over a guest list needs more than a prompt. In
+`server/insights.ts` the generated query passes five independent layers:
+
+1. **Static check.** A single `SELECT`/`WITH`, no comments, no `;`, no system
+   catalogs, no real table names. A rejected query goes back to the model once,
+   with the reason.
+2. **Rolled-back transaction.** The query runs inside `BEGIN … ROLLBACK`, so
+   nothing it does is kept.
+3. **A role with no privileges.** `SET LOCAL ROLE saathi_reader`, a role
+   granted nothing on any real table. If the role switch fails, the query is
+   not run.
+4. **Only this wedding's rows.** Before switching role, the server copies the
+   wedding's RSVPs into a temporary `guests` table (phone numbers left out) and
+   its schedule into `events`. The model only ever knows those two tables.
+5. **Limits.** A 4-second statement timeout and a 200-row cap.
+
+`tests/insights.test.ts` checks this: another wedding's guests are never
+counted, `SELECT phone` fails, and `SELECT … FROM public.rsvps` gets
+*permission denied* even with the static check bypassed.
+
+## Privacy and security
+
+* Guest-data rules are written once, in `.agents/skills/guest-data-guardrails/`,
+  and loaded into every agent that touches guest data.
+* The host's studio and dashboard need a 144-bit host token. Guests get their
+  own token when they RSVP and can only read or change their own answer.
+* The host sees phone numbers masked (`••••3210`); the model never sees them.
+* Uploads are type-checked and size-capped, and every API route is
+  rate-limited per IP.
+* No face recognition and no government IDs (India's DPDP Act).
+
+## Accessibility
+
+Built for grandparents as much as for the couple:
+
+* Voice in Hindi and English, with every spoken reply also shown as text.
+* **0 axe-core violations (WCAG 2.1 A/AA)** on every page state: create,
+  invitation (closed, open, RSVP), Saathi, studio and dashboard.
+* Labelled controls, chat logs announced to screen readers (`role="log"`),
+  a visible focus ring, Escape to close Saathi with focus returned, and all
+  motion turned off under `prefers-reduced-motion`.
+* Works in any mobile browser with no install; guests never create an account.
+
+## Tests and CI
+
+```bash
+npm test          # 22 tests on in-memory PGlite; no API key needed
+npm run typecheck
+```
+
+* `tests/insights.test.ts`: sandbox isolation, rollback, role, SQL static check.
+* `tests/saathi-tools.test.ts`: tools only touch the caller's own RSVP and
+  wedding, ignore injected ids, and never return phone numbers or host tokens.
+* `tests/wedding.test.ts`: draft normalisation (bad model output becomes
+  "unknown", never a guess), the readiness rule, slugs and tokens, Agent Skill parsing.
+* Live checks against a running server with real Gemini calls:
+  `scripts/e2e.ts` (the whole flow), `scripts/ask-test.ts` (guest-list
+  questions plus a prompt-injection attempt), `scripts/live-test.ts` (Gemini Live voice).
+
+GitHub Actions runs typecheck, tests and the production build on every push.
 
 ## Run locally
 
 ```bash
-cp .env.example .env      # add GEMINI_API_KEY
+cp .env.example .env      # add GEMINI_API_KEY (paid tier for Nano Banana and Lyria)
 npm install
-npm run dev               # API on :8080 (local PGlite database in .data/)
+npm run dev               # API on :8080 with a local PGlite database in .data/
 npm run dev:web           # web on :5173, proxies /api
 ```
 
-Set `DATABASE_URL` to an AlloyDB Express connection string to use AlloyDB instead of PGlite.
+Set `DATABASE_URL` to use AlloyDB or any PostgreSQL instead of PGlite.
 
 ## Deploy to Cloud Run
 
 The Dockerfile builds the web app and bundles the AlloyDB Auth Proxy.
 
 ```bash
-# API key in Secret Manager, not in the command line
 printf '%s' "$GEMINI_API_KEY" | gcloud secrets create gemini-api-key --data-file=-
 
 gcloud run deploy baraati-saathi --source . --region asia-south1 \
   --allow-unauthenticated --min-instances 1 --max-instances 1 --memory 1Gi \
-  --set-secrets GEMINI_API_KEY=gemini-api-key:latest \
-  --set-env-vars ALLOYDB_INSTANCE_URI=projects/P/locations/R/clusters/C/instances/I,ALLOYDB_PROXY_FLAGS=--public-ip,DB_USER=postgres,DB_NAME=postgres \
-  --set-secrets DB_PASSWORD=alloydb-password:latest
+  --set-secrets GEMINI_API_KEY=gemini-api-key:latest,DB_PASSWORD=alloydb-password:latest \
+  --set-env-vars ALLOYDB_INSTANCE_URI=projects/P/locations/R/clusters/C/instances/I,ALLOYDB_PROXY_FLAGS=--public-ip,DB_USER=postgres,DB_NAME=postgres
 
-# Seed the demo wedding and print its links
-node --import tsx scripts/seed-demo.ts https://<service-url>
+node --import tsx scripts/seed-demo.ts https://<service-url>   # demo wedding + its links
 ```
 
-`/api/health` shows which database is in use. If AlloyDB can't be reached the
-app falls back to an in-container PGlite database (kept alive by
-`--min-instances 1`) and reports why.
+## Repository map
 
-## Privacy
+```
+server/          Express API
+  intake.ts        Act 1: card / chat / voice note → structured wedding
+  design.ts        Act 2: art, music, RSVP + note extraction, host dashboard
+  saathi.ts        Act 3: chat with function calling, Live tokens, tool relay
+  insights.ts      Ask your guest list (text-to-SQL sandbox)
+  gemini.ts        Interactions API wrapper, fallback chains
+  db.ts            AlloyDB (pg) or PGlite, plus the rollback sandbox
+  skills.ts        Agent Skills loader
+web/src/         React app: Create, Studio, Invite, Host, Saathi, live.ts (voice)
+.agents/skills/  Agent Skills (SKILL.md)
+db/schema.sql    Tables and the saathi_reader role
+tests/           node:test suites
+scripts/         Seed, end-to-end and live checks
+```
 
-Guest data rules live in `.agents/skills/guest-data-guardrails/SKILL.md`: every
-query is scoped to the wedding and the guest, the model never sees raw phone
-numbers, and there is no tool that can reach another guest's details.
+## What's next
+
+* Move RSVP-note extraction into the database with AlloyDB AI (`AI.EXTRACT`),
+  and add vector search over info cards as weddings grow.
+* Media to Cloud Storage; rate limits to a shared store when scaling out.
+* Bring Saathi into the Baraati app for its live weddings.

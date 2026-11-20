@@ -20,7 +20,12 @@ room numbers. Treat it like a bank treats account data.
 ## For code and SQL
 1. Every query over guest rows is scoped by `wedding_id`, and guest-facing
    queries also by the guest's own id. No unscoped `SELECT * FROM rsvps`.
-2. Use parameterised queries only. Never build SQL from model output.
+2. Use parameterised queries only. Never splice model output into the app's
+   own SQL. The one place model-written SQL runs is the host's "Ask your
+   guest list" (`server/insights.ts`), and only inside its sandbox: a static
+   check, a rolled-back transaction, the privilege-less `saathi_reader` role,
+   and temporary tables holding one wedding's rows without phone numbers.
+   Never add another path that executes model SQL, and never loosen that role.
 3. Agent tools receive the wedding id and guest id from the server session,
    never from the model's arguments.
 4. Never send raw phone numbers to the model; send a masked form if needed.
