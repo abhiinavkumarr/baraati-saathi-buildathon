@@ -83,6 +83,7 @@ export async function createSampleWedding(sessionToken?: string): Promise<Active
     },
     sessionToken,
   );
+  await post(`/api/host/${r.slug}/seed-sample`, { t: r.host_token }, sessionToken).catch(() => {});
   return r;
 }
 
@@ -123,7 +124,7 @@ export function Login() {
       });
       setSession(s);
       const w = await createSampleWedding(s.session);
-      await refreshWeddings();
+      await refreshWeddings(undefined, s);
       navigate(`/w/${w.slug}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create sample wedding.');

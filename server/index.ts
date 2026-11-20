@@ -8,6 +8,7 @@ import { saathiRouter } from './saathi.ts';
 import { insightsRouter } from './insights.ts';
 import { controlRouter } from './control.ts';
 import { authRouter } from './auth.ts';
+import { planningRouter } from './planning.ts';
 import { HttpError, MODELS } from './gemini.ts';
 import { getDb } from './db.ts';
 import { skillMenu } from './skills.ts';
@@ -47,6 +48,7 @@ app.use('/api', designRouter);
 app.use('/api', saathiRouter);
 app.use('/api', insightsRouter);
 app.use('/api', controlRouter);
+app.use('/api', planningRouter);
 
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Not found.' });

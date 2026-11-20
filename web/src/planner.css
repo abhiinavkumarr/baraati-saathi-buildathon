@@ -510,7 +510,7 @@
 }
 
 /* Ask Saathi Floating Drawer */
-.saathi-fab {
+.pl-saathi-fab {
   position: fixed;
   right: 22px;
   bottom: 22px;
@@ -532,11 +532,11 @@
   transition: transform var(--t-fast) var(--ease);
 }
 
-.saathi-fab:hover {
+.pl-saathi-fab:hover {
   transform: translateY(-2px);
 }
 
-.saathi-fab-orb {
+.pl-saathi-fab-orb {
   width: 40px;
   height: 40px;
   border-radius: var(--r-pill);
@@ -667,7 +667,7 @@
     padding: 24px 20px;
     border-radius: var(--r-card);
   }
-  .saathi-fab {
+  .pl-saathi-fab {
     right: 14px;
     bottom: 14px;
   }
@@ -682,5 +682,435 @@
   }
   .saathi-drawer.open {
     transform: translateY(0);
+  }
+}
+
+/* ───────── Step 2: Your Wedding (Guests, Vendors, Budget, Tasks) ───────── */
+
+.pl-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pl-actions-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pl-filters-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pl-filter-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pl-bulk-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--bg-warm);
+}
+
+.pl-bulk-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pl-bulk-controls input,
+.pl-bulk-controls select {
+  width: auto;
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 13.5px;
+}
+
+.pl-table-card {
+  padding: 0;
+  overflow-x: auto;
+}
+
+.pl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.pl-table th {
+  text-align: left;
+  padding: 12px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.pl-table td {
+  padding: 12px 14px;
+  border-top: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.pl-table tbody tr:first-child td {
+  border-top: 0;
+}
+
+.pl-right {
+  text-align: right;
+}
+
+.pl-badges-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+
+.pl-row-btns {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.pl-card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pl-guest-mobile .pl-gm-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pl-gm-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.pl-desktop-only {
+  display: block;
+}
+
+.pl-mobile-only {
+  display: none;
+}
+
+.pl-empty-card {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 24px;
+}
+
+.pl-empty-orb {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-pill);
+  background: var(--grad-peach);
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+}
+
+.pl-sheet-form {
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+}
+
+.pl-sheet-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Vendors */
+.pl-vendor-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.pl-vendor-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pl-vc-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.pl-vc-money {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border-radius: var(--r-sm);
+  background: var(--bg);
+}
+
+.pl-vc-money div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pl-vc-foot {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Budget */
+.pl-stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pl-stat-big {
+  font-size: clamp(32px, 4vw, 42px);
+  line-height: 1.05;
+}
+
+.pl-cat-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.pl-cat-list li {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.pl-cat-list li:first-child {
+  border-top: 0;
+}
+
+.pl-cat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.pl-cat-nums {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pl-inline-num {
+  width: 110px;
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 13px;
+  text-align: right;
+}
+
+.pl-bar {
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--bg-2);
+  overflow: hidden;
+}
+
+.pl-bar span {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+}
+
+.pl-pay-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.pl-pay-form input,
+.pl-pay-form select {
+  min-height: 40px;
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
+.pl-pay-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.pl-pay-row select {
+  flex: 1;
+}
+
+.pl-pay-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.pl-pay-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.pl-pay-list li:first-child {
+  border-top: 0;
+}
+
+.pl-pay-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Tasks */
+.pl-quick-task {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pl-quick-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pl-quick-row input:first-child {
+  flex: 2;
+  min-width: 200px;
+}
+
+.pl-quick-who {
+  flex: 1;
+  min-width: 120px;
+  max-width: 200px;
+}
+
+.pl-task-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pl-tg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.pl-task-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.pl-task-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.pl-task-list li:first-child {
+  border-top: 0;
+}
+
+.pl-task-list li.done .pl-task-title {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.pl-task-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.pl-task-main input[type=checkbox] {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--ink);
+  flex: none;
+}
+
+.pl-task-title {
+  font-weight: 600;
+  font-size: 14.5px;
+}
+
+.pl-task-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pl-task-right select {
+  width: auto;
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .pl-desktop-only {
+    display: none;
+  }
+  .pl-mobile-only {
+    display: flex;
   }
 }

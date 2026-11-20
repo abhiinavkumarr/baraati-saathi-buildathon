@@ -22,7 +22,7 @@ interface WeddingContextValue {
   setPasscode: (p: string) => void;
   setSession: (s: StoredSession | null) => void;
   logout: () => void;
-  refreshWeddings: (overridePasscode?: string) => Promise<ListedWedding[]>;
+  refreshWeddings: (overridePasscode?: string, overrideSession?: StoredSession) => Promise<ListedWedding[]>;
   getTokenForSlug: (slug: string) => string;
   getWeddingBySlug: (slug: string) => ListedWedding | undefined;
 }
@@ -76,8 +76,9 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
     setSession(null);
   }, [setSession]);
 
-  const refreshWeddings = useCallback(async (overridePasscode?: string): Promise<ListedWedding[]> => {
-    if (!session) {
+  const refreshWeddings = useCallback(async (overridePasscode?: string, overrideSession?: StoredSession): Promise<ListedWedding[]> => {
+    const active = overrideSession ?? session ?? readStoredSession();
+    if (!active) {
       setWeddings([]);
       setLoading(false);
       return [];
@@ -89,7 +90,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       const r = await apiJson<{ user: { id: string; name: string }; weddings: ListedWedding[] }>(
         '/api/me/weddings',
         { headers: code ? { 'x-owner-passcode': code } : undefined },
-        session.session,
+        active.session,
       );
       setWeddings(r.weddings);
       return r.weddings;

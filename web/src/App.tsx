@@ -6,6 +6,10 @@ import { MyWeddings } from './pages/MyWeddings.tsx';
 import { NewWedding } from './pages/NewWedding.tsx';
 import { WeddingShell, type SectionKey } from './pages/wedding/WeddingShell.tsx';
 import { WeddingHome } from './pages/wedding/WeddingHome.tsx';
+import { GuestsTab } from './pages/wedding/plan/GuestsTab.tsx';
+import { VendorsTab } from './pages/wedding/plan/VendorsTab.tsx';
+import { BudgetTab } from './pages/wedding/plan/BudgetTab.tsx';
+import { TasksTab } from './pages/wedding/plan/TasksTab.tsx';
 import { WeddingProvider, useWedding } from './WeddingContext.tsx';
 
 // Minimal path router; the app has only a handful of pages.
@@ -68,12 +72,26 @@ function RouterView() {
     }
 
     let content = <WeddingHome slug={slug} />;
-    if (section === 'studio' && tab === 'invitation') {
+    if (section === 'plan') {
+      if (tab === 'guests') content = <GuestsTab slug={slug} />;
+      else if (tab === 'vendors') content = <VendorsTab slug={slug} />;
+      else if (tab === 'budget') content = <BudgetTab slug={slug} />;
+      else if (tab === 'tasks') content = <TasksTab slug={slug} />;
+      else {
+        content = (
+          <section className="card">
+            <p className="eyebrow">Your Wedding</p>
+            <h1 className="h2" style={{ margin: '0 0 8px' }}>{tab}</h1>
+            <p className="muted">Coming right up in the next step.</p>
+          </section>
+        );
+      }
+    } else if (section === 'studio' && tab === 'invitation') {
       content = <Studio slug={slug} tokenOverride={token} embedded />;
     } else if (section !== 'home') {
       content = (
         <section className="card">
-          <p className="eyebrow">{section === 'plan' ? 'Your Wedding' : section === 'app' ? 'Baraati App' : 'AI Studio'}</p>
+          <p className="eyebrow">{section === 'app' ? 'Baraati App' : 'AI Studio'}</p>
           <h1 className="h2" style={{ margin: '0 0 8px' }}>{tab}</h1>
           <p className="muted">Coming right up in the next step.</p>
         </section>

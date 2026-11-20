@@ -29,13 +29,13 @@ export function AskSaathiDrawer({ slug, token }: { slug: string; token: string }
     <>
       <button
         type="button"
-        className="saathi-fab"
+        className="pl-saathi-fab"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-label={open ? 'Close Ask Saathi' : 'Open Ask Saathi'}
       >
-        <span className="saathi-fab-orb" aria-hidden>✦</span>
-        <span className="saathi-fab-label">Ask Saathi</span>
+        <span className="pl-saathi-fab-orb" aria-hidden>✦</span>
+        <span className="pl-saathi-fab-label">Ask Saathi</span>
       </button>
 
       {open && (

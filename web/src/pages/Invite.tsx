@@ -41,8 +41,32 @@ export function Invite({ slug }: { slug: string }) {
   const [open, setOpen] = useState(preview);
   const [gate, setGate] = useState<'closed' | 'opening' | 'gone'>(preview ? 'gone' : 'closed');
   const [playing, setPlaying] = useState(false);
-  // Personal links from the host's control room carry the guest's name: ?g=Nani%20ji
-  const guestName = (new URLSearchParams(location.search).get('g') ?? '').trim().slice(0, 40);
+  // Personal links carry either a guest_token (?g=<token>) or a plain guest name (?g=Nani%20ji).
+  const rawG = (new URLSearchParams(location.search).get('g') ?? '').trim().slice(0, 64);
+  const [resolvedGuestName, setResolvedGuestName] = useState('');
+  const [resolvedToken, setResolvedToken] = useState('');
+  useEffect(() => {
+    if (!rawG) return;
+    // Try resolving as a guest_token first via my-plan; fallback to plain name.
+    let alive = true;
+    fetch(`/api/weddings/${slug}/my-plan?guest_token=${encodeURIComponent(rawG)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { rsvp?: { name: string } | null } | null) => {
+        if (!alive) return;
+        if (j?.rsvp?.name) {
+          setResolvedGuestName(j.rsvp.name);
+          setResolvedToken(rawG);
+          storage(`guest:${slug}`, rawG);
+        } else {
+          setResolvedGuestName(rawG.slice(0, 40));
+        }
+      })
+      .catch(() => alive && setResolvedGuestName(rawG.slice(0, 40)));
+    return () => {
+      alive = false;
+    };
+  }, [slug, rawG]);
+  const guestName = resolvedGuestName || (rawG.length <= 20 && !/[_-]/.test(rawG) ? rawG : '');
   const audio = useRef<HTMLAudioElement | null>(null);
 
   const musicUrl = w?.assets.music ? `/api/assets/${w.assets.music}` : '';
@@ -180,7 +204,7 @@ export function Invite({ slug }: { slug: string }) {
         ))}
       </section>
 
-      <Rsvp slug={slug} disabled={preview} guestName={guestName} />
+      <Rsvp slug={slug} disabled={preview} guestName={guestName} initialToken={resolvedToken} />
       {open && <Saathi slug={slug} coupleNames={`${d.partner1_name} & ${d.partner2_name}`} />}
 
       {musicUrl && (
@@ -209,15 +233,15 @@ interface ExtractedLogistics {
 
 interface MyPlan {
   name: string;
-  status: 'yes' | 'no' | 'maybe';
+  status: 'yes' | 'no' | 'maybe' | 'pending';
   party_size: number;
   note: string | null;
   extracted: ExtractedLogistics | null;
 }
 
-function Rsvp({ slug, disabled, guestName = '' }: { slug: string; disabled: boolean; guestName?: string }) {
+function Rsvp({ slug, disabled, guestName = '', initialToken = '' }: { slug: string; disabled: boolean; guestName?: string; initialToken?: string }) {
   const tokenKey = `guest:${slug}`;
-  const [token, setToken] = useState(() => storage(tokenKey) ?? '');
+  const [token, setToken] = useState(() => initialToken || storage(tokenKey) || '');
   const [status, setStatus] = useState<'yes' | 'no' | 'maybe' | ''>('');
   const [name, setName] = useState(guestName);
   const [phone, setPhone] = useState('');
@@ -226,8 +250,16 @@ function Rsvp({ slug, disabled, guestName = '' }: { slug: string; disabled: bool
   const [ticket, setTicket] = useState<{ name: string; attachment: Attachment } | null>(null);
   const [plan, setPlan] = useState<MyPlan | null>(null);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(Boolean(token));
+  const [done, setDone] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (initialToken && initialToken !== token) setToken(initialToken);
+  }, [initialToken, token]);
+
+  useEffect(() => {
+    if (guestName && !name) setName(guestName);
+  }, [guestName, name]);
 
   useEffect(() => {
     if (!token || disabled) return;
@@ -237,7 +269,10 @@ function Rsvp({ slug, disabled, guestName = '' }: { slug: string; disabled: bool
       .then((j: { rsvp?: MyPlan | null } | null) => {
         if (!alive || !j?.rsvp) return;
         setPlan(j.rsvp);
-        setStatus((s) => s || j.rsvp!.status);
+        if (j.rsvp.status !== 'pending') {
+          setStatus((s) => s || (j.rsvp!.status as 'yes' | 'no' | 'maybe'));
+          setDone(true);
+        }
         setName((n) => n || j.rsvp!.name);
         setParty(j.rsvp!.party_size || 1);
         setNote((nt) => nt || j.rsvp!.note || '');

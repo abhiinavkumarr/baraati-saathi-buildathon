@@ -73,6 +73,7 @@ const guests: [string, 'yes' | 'maybe' | 'no', number, string][] = [
 for (const [name, status, party_size, note] of guests) {
   await call('POST', `/api/weddings/${slug}/rsvp`, { name, status, party_size, note });
 }
+await call('POST', `/api/host/${slug}/seed-sample`, { t: host_token });
 
 // Two questions the schedule can't answer, so the host's inbox isn't empty.
 for (const q of ['Can I bring my dog to the Mehendi?', 'Will there be a mehendi artist for guests too?']) {
