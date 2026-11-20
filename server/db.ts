@@ -5,10 +5,17 @@ import { readFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 type Row = Record<string, unknown>;
+export type Query = <T extends Row = Row>(sql: string, params?: unknown[]) => Promise<T[]>;
+
 export interface Db {
-  query<T extends Row = Row>(sql: string, params?: unknown[]): Promise<T[]>;
+  query: Query;
   kind: 'alloydb' | 'pglite';
   note?: string;
+  /**
+   * Run `fn` on one connection inside a transaction that is always rolled
+   * back: nothing `fn` does is kept. Used for model-written SQL.
+   */
+  sandbox<T>(fn: (q: Query) => Promise<T>): Promise<T>;
 }
 
 const schemaPath = fileURLToPath(new URL('../db/schema.sql', import.meta.url));
@@ -19,6 +26,8 @@ export function getDb(): Promise<Db> {
   dbPromise ??= open();
   return dbPromise;
 }
+
+class Rollback extends Error {}
 
 async function open(): Promise<Db> {
   const schema = readFileSync(schemaPath, 'utf8');
@@ -44,6 +53,16 @@ async function open(): Promise<Db> {
           const res = await pool.query(sql, params);
           return res.rows;
         },
+        async sandbox(fn) {
+          const client = await pool.connect();
+          try {
+            await client.query('BEGIN');
+            return await fn(async (sql, params = []) => (await client.query(sql, params)).rows as never);
+          } finally {
+            await client.query('ROLLBACK').catch(() => {});
+            client.release();
+          }
+        },
       };
     } catch (e) {
       if (process.env.DB_STRICT === '1') throw e;
@@ -54,10 +73,9 @@ async function open(): Promise<Db> {
   return openLite(schema);
 }
 
-async function openLite(schema: string, note?: string): Promise<Db> {
+export async function openLite(schema: string, note?: string, dir = process.env.PGLITE_DIR || '.data/pglite'): Promise<Db> {
   const { PGlite } = await import('@electric-sql/pglite');
-  const dir = process.env.PGLITE_DIR || '.data/pglite';
-  mkdirSync(dir, { recursive: true });
+  if (!dir.startsWith('memory://')) mkdirSync(dir, { recursive: true });
   const lite = new PGlite(dir);
   await lite.exec(schema);
   console.log(`[db] using PGlite in ${dir}`);
@@ -68,5 +86,22 @@ async function openLite(schema: string, note?: string): Promise<Db> {
       const res = await lite.query(sql, params);
       return res.rows as never;
     },
+    async sandbox<T>(fn: (q: Query) => Promise<T>): Promise<T> {
+      // PGlite has a single connection; its transaction() holds it exclusively,
+      // so other requests wait instead of joining (and losing) this transaction.
+      let out: T | undefined;
+      try {
+        await lite.transaction(async (tx) => {
+          out = await fn(async (sql, params = []) => (await tx.query(sql, params)).rows as never);
+          throw new Rollback();
+        });
+      } catch (e) {
+        if (!(e instanceof Rollback)) throw e;
+      }
+      return out as T;
+    },
   };
 }
+
+/** The schema text, for tests that open their own in-memory database. */
+export const schemaSql = () => readFileSync(schemaPath, 'utf8');

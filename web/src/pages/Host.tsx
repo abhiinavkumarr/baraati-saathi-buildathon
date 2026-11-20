@@ -70,6 +70,8 @@ export function Host({ slug }: { slug: string }) {
         <Stat n={open.length} label="Questions for you" />
       </div>
 
+      <AskBox slug={slug} token={token} />
+
       <div className="host-grid">
         <section className="card-box">
           <h2>RSVPs</h2>
@@ -138,6 +140,103 @@ function QuestionRow({ slug, token, q }: { slug: string; token: string; q: Quest
       {err && <span className="error">{err}</span>}
     </li>
   );
+}
+
+interface AskResult { answer: string; sql: string; columns: string[]; rows: Record<string, unknown>[]; ms: number; db: string }
+
+const ASK_EXAMPLES = [
+  'Who needs an airport pickup, and when do they land?',
+  'How many children are coming?',
+  'Kitne log Jain khana khayenge?',
+  'Arrivals by date',
+];
+
+/** "Ask your guest list": Gemini writes SQL, AlloyDB runs it in a read-only sandbox. */
+function AskBox({ slug, token }: { slug: string; token: string }) {
+  const [question, setQuestion] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<AskResult | null>(null);
+  const [asked, setAsked] = useState('');
+  const [err, setErr] = useState('');
+
+  async function ask(q: string) {
+    if (!q.trim() || busy) return;
+    setBusy(true);
+    setErr('');
+    setAsked(q.trim());
+    try {
+      setResult(await post<AskResult>(`/api/host/${slug}/ask`, { t: token, question: q }));
+    } catch (e) {
+      setResult(null);
+      setErr(e instanceof Error ? e.message : 'Could not answer that.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card-box ask" aria-labelledby="ask-title">
+      <h2 id="ask-title">Ask your guest list</h2>
+      <p className="muted small">In English, Hindi or Hinglish. Gemini writes the query; AlloyDB runs it on your wedding's RSVPs only.</p>
+      <form
+        className="q-answer"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void ask(question);
+        }}
+      >
+        <label htmlFor="ask-input" className="sr-only">Question about your guests</label>
+        <input
+          id="ask-input"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder="e.g. Who lands on the 12th and needs a pickup?"
+          disabled={busy}
+        />
+        <button disabled={busy || !question.trim()}>{busy ? 'Thinking…' : 'Ask'}</button>
+      </form>
+      <div className="chips ask-chips">
+        {ASK_EXAMPLES.map((q) => (
+          <button key={q} type="button" className="chip" disabled={busy} onClick={() => { setQuestion(q); void ask(q); }}>{q}</button>
+        ))}
+      </div>
+      <div aria-live="polite">
+        {err && <p className="error" role="alert">{err}</p>}
+        {result && !busy && (
+          <div className="ask-result">
+            <p className="ask-q muted small">“{asked}”</p>
+            <p className="ask-answer">{result.answer}</p>
+            {result.rows.length > 0 && result.columns.length > 1 && (
+              <div className="ask-table-wrap">
+                <table className="ask-table">
+                  <thead><tr>{result.columns.map((c) => <th key={c} scope="col">{c.replace(/_/g, ' ')}</th>)}</tr></thead>
+                  <tbody>
+                    {result.rows.slice(0, 50).map((r, i) => (
+                      <tr key={i}>{result.columns.map((c) => <td key={c}>{fmtCell(r[c])}</td>)}</tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {result.sql && (
+              <details className="ask-sql">
+                <summary>
+                  Query ran on {result.db === 'alloydb' ? 'AlloyDB' : 'PostgreSQL'} in {result.ms} ms · read-only sandbox
+                </summary>
+                <pre>{result.sql}</pre>
+              </details>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function fmtCell(v: unknown): string {
+  if (v === null || v === undefined || v === '') return '—';
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+  return String(v);
 }
 
 function Stat({ n, label, accent }: { n: number; label: string; accent?: boolean }) {

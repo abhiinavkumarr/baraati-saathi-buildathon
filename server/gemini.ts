@@ -125,10 +125,12 @@ export async function generateJson<T>(opts: {
   input: unknown[];
   schema: object;
   model?: string;
+  /** Models to try in order (default: TEXT_MODELS). `model` = just that one. */
+  models?: string[];
 }): Promise<T> {
   // The SDK's input types lag the docs; the shapes below follow the
   // Interactions API reference (text / image / document / audio parts).
-  const interaction = await withFallback(opts.model ? [opts.model] : TEXT_MODELS, (model) =>
+  const interaction = await withFallback(opts.model ? [opts.model] : opts.models ?? TEXT_MODELS, (model) =>
     ai().interactions.create({
       model,
       system_instruction: opts.system,

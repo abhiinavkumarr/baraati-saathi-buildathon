@@ -51,3 +51,17 @@ CREATE TABLE IF NOT EXISTS questions (
   created_at  timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS questions_wedding ON questions (wedding_id, status, created_at DESC);
+
+-- "Ask your guest list" runs Gemini-written SQL as this role. It owns nothing
+-- and is granted nothing on the tables above: inside a rolled-back sandbox it
+-- only sees two temporary tables holding ONE wedding's rows (server/insights.ts).
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'saathi_reader') THEN
+    CREATE ROLE saathi_reader NOLOGIN;
+  END IF;
+  EXECUTE format('GRANT saathi_reader TO %I', current_user);
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'saathi_reader setup: %', SQLERRM;
+END $$;
+REVOKE ALL ON weddings, assets, rsvps, questions FROM saathi_reader;

@@ -18,7 +18,7 @@ interface Ctx {
   guestToken: string; // '' if the guest hasn't RSVP'd on this device
 }
 
-async function context(slug: string, guestToken: unknown): Promise<Ctx> {
+export async function context(slug: string, guestToken: unknown): Promise<Ctx> {
   const db = await getDb();
   const rows = await db.query<{ id: string; draft: WeddingDraft }>('SELECT id, draft FROM weddings WHERE slug = $1', [slug]);
   if (!rows[0]) throw new HttpError(404, 'Wedding not found.');
@@ -32,7 +32,7 @@ async function context(slug: string, guestToken: unknown): Promise<Ctx> {
 
 // ── Tools ───────────────────────────────────────────────────────────────────
 
-const TOOL_DEFS = [
+export const TOOL_DEFS = [
   {
     name: 'get_wedding_details',
     description:
@@ -71,7 +71,7 @@ const TOOL_DEFS = [
 ];
 
 /** What the host published for every guest. Never includes other guests' data. */
-function publicDetails(d: WeddingDraft) {
+export function publicDetails(d: WeddingDraft) {
   return {
     couple: `${d.partner1_name} & ${d.partner2_name}`,
     city: d.city,
@@ -82,7 +82,7 @@ function publicDetails(d: WeddingDraft) {
   };
 }
 
-async function runTool(ctx: Ctx, name: string, args: Record<string, unknown>): Promise<unknown> {
+export async function runTool(ctx: Ctx, name: string, args: Record<string, unknown>): Promise<unknown> {
   const db = await getDb();
   switch (name) {
     case 'get_wedding_details':

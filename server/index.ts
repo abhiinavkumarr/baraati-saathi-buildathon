@@ -5,6 +5,7 @@ import { intakeRouter } from './intake.ts';
 import { designRouter } from './design.ts';
 import { rateLimit } from './rateLimit.ts';
 import { saathiRouter } from './saathi.ts';
+import { insightsRouter } from './insights.ts';
 import { HttpError, MODELS } from './gemini.ts';
 import { getDb } from './db.ts';
 import { skillMenu } from './skills.ts';
@@ -32,9 +33,11 @@ app.use(/^\/api\/weddings\/[^/]+\/rsvp$/, rateLimit('rsvp', 20, TEN_MIN));
 app.use(/^\/api\/saathi\/[^/]+\/chat$/, rateLimit('chat', 40, TEN_MIN));
 app.use(/^\/api\/saathi\/[^/]+\/live-token$/, rateLimit('live', 15, TEN_MIN));
 app.use(/^\/api\/saathi\/[^/]+\/tool$/, rateLimit('tool', 200, TEN_MIN));
+app.use(/^\/api\/host\/[^/]+\/ask$/, rateLimit('ask', 30, TEN_MIN));
 app.use('/api', intakeRouter);
 app.use('/api', designRouter);
 app.use('/api', saathiRouter);
+app.use('/api', insightsRouter);
 
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Not found.' });

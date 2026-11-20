@@ -106,3 +106,23 @@
 .badge.ai { background: #efeaff; border-color: #d8ceff; color: #4b3bb5; }
 .note { margin: 6px 0 0; font-size: 14px; color: var(--ink-2); font-style: italic; }
 .q-list li { padding: 12px 14px; border-radius: 14px; background: var(--cream); }
+
+/* Ask your guest list */
+.ask { margin-bottom: 18px; }
+.ask .q-answer { display: flex; gap: 8px; margin-top: 10px; }
+.ask .q-answer input { flex: 1; min-width: 0; border: 1.5px solid var(--line); border-radius: 100px; padding: 11px 16px; font: inherit; }
+.ask .q-answer button { border: none; border-radius: 100px; padding: 0 22px; background: var(--ink); color: var(--cream); font-weight: 600; }
+.ask .q-answer button:disabled { opacity: .5; }
+.ask-chips { padding: 12px 0 0; }
+.ask-result { margin-top: 16px; border-top: 1.5px solid var(--line); padding-top: 14px; }
+.ask-q { margin: 0 0 4px; }
+.ask-answer { font-size: 18px; margin: 0 0 12px; line-height: 1.45; }
+.ask-table-wrap { overflow-x: auto; border: 1.5px solid var(--line); border-radius: 14px; }
+.ask-table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums lining-nums; }
+.ask-table th, .ask-table td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.ask-table th { background: var(--surface); font-weight: 600; text-transform: capitalize; }
+.ask-table tr:last-child td { border-bottom: none; }
+.ask-sql { margin-top: 10px; font-size: 13px; color: var(--muted); }
+.ask-sql summary { cursor: pointer; }
+.ask-sql pre { background: var(--ink); color: var(--cream); padding: 12px 14px; border-radius: 12px; overflow-x: auto; font-size: 12.5px; white-space: pre-wrap; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
