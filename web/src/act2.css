@@ -97,7 +97,7 @@
 .music-btn { position: fixed; right: 16px; bottom: 16px; z-index: 10; width: 48px; height: 48px; border-radius: var(--r-pill); border: 1px solid var(--line-2); background: var(--card); color: var(--ink); font-size: 18px; box-shadow: var(--shadow-float); }
 
 /* ───────── Studio (/studio/:slug) ───────── */
-.studio, main.host { max-width: 1180px; margin: 0 auto; padding: 20px 16px 50px; }
+.studio, main.host { max-width: var(--page-max); margin: 0 auto; padding: 20px 16px 50px; }
 .studio-grid { display: grid; grid-template-columns: 1fr auto; gap: 40px; align-items: start; }
 @media (max-width: 900px) { .studio-grid { grid-template-columns: 1fr; } }
 .jobs { list-style: none; padding: 0; margin: 20px 0; display: flex; flex-direction: column; gap: 12px; }
@@ -161,3 +161,21 @@
 .day-schedule-list li:first-child { border-top: 0; padding-top: 0; }
 .ds-time { font-weight: 700; min-width: 72px; color: var(--i-ink); font-variant-numeric: tabular-nums; }
 .ds-place { color: var(--i-soft); }
+
+/* ── Wide screens: use the width instead of a single 560px column ───────── */
+@media (min-width: 760px) {
+  .schedule { max-width: 1280px; padding: 60px var(--page-pad); }
+  .section-title { font-size: 48px; }
+  /* Each day: label across the top, its ceremonies side by side. */
+  .day { display: flex; flex-wrap: wrap; justify-content: center; align-items: stretch; gap: 22px; margin-bottom: 18px; }
+  .day > .day-label, .day > .day-schedule { flex-basis: 100%; }
+  .day > .day-schedule { max-width: 760px; }
+  .day > .event { flex: 1 1 340px; max-width: 520px; }
+  .day > .day-label { margin: 34px 0 4px; font-size: 17px; }
+  .event { margin-bottom: 0; display: flex; flex-direction: column; }
+  .event-body { flex: 1; }
+  .rsvp, .update { max-width: 760px; }
+  .hero-panel { max-width: 560px; padding: 56px 40px; }
+  .names { font-size: clamp(64px, 7vw, 92px); }
+  .couple-art img { width: 380px; }
+}

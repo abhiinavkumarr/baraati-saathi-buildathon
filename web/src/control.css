@@ -1,5 +1,5 @@
 /* ───────── Host control room (/h/:slug) ───────── */
-.cr { max-width: 1180px; margin: 0 auto; padding: 12px 0 60px; }
+.cr { max-width: var(--page-max); margin: 0 auto; padding: 12px 0 60px; }
 .cr-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; padding: 0 4px; }
 .cr-brand { display: flex; align-items: baseline; gap: 6px; }
 .cr-links { display: flex; align-items: center; gap: 10px; font-size: 14px; }

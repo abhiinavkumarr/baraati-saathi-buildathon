@@ -3,7 +3,7 @@
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 40px 32px;
+  padding: 40px var(--page-pad);
   position: relative;
   overflow: hidden;
   background:
@@ -13,7 +13,7 @@
 }
 .login-wrap {
   width: 100%;
-  max-width: 1120px;
+  max-width: 1320px;
   display: grid;
   grid-template-columns: 1.08fr 0.92fr;
   gap: 48px;
@@ -92,9 +92,9 @@
 /* ───────── Post-login Workspace ───────── */
 .ws { min-height: 100vh; background: var(--bg); }
 .ws-top-inner {
-  max-width: 1180px;
+  max-width: var(--page-max);
   margin: 0 auto;
-  padding: 12px 32px 8px;
+  padding: 12px var(--page-pad) 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -107,9 +107,9 @@
 .ws-user-pill { font-size: 13px; color: var(--muted); font-weight: 600; padding: 0 4px; }
 
 .ws-connect {
-  max-width: 1180px;
+  max-width: var(--page-max);
   margin: 0 auto;
-  padding: 8px 32px 12px;
+  padding: 8px var(--page-pad) 12px;
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
@@ -118,12 +118,12 @@
 .ws-connect input { flex: 1; min-width: 240px; min-height: 40px; padding: 8px 16px; }
 
 .ws-tabs-wrap {
-  max-width: 1180px;
+  max-width: var(--page-max);
   margin: 0 auto;
-  padding: 6px 32px 12px;
+  padding: 6px var(--page-pad) 12px;
 }
 
-.ws-body { max-width: 1180px; margin: 0 auto; padding: 24px 32px 64px; }
+.ws-body { max-width: var(--page-max); margin: 0 auto; padding: 24px var(--page-pad) 64px; }
 .ws-section { padding-top: 4px; }
 .ws-h1 { margin: 0 0 6px; }
 .ws-subbar {

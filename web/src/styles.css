@@ -1,5 +1,7 @@
 :root {
   /* Surfaces */
+  --page-max: 1560px;                       /* app pages fill wide screens up to this */
+  --page-pad: clamp(16px, 3.2vw, 48px);     /* side gutter: 16px on phones, 48px on desktops */
   --bg:        #FBF7F1;   /* page */
   --bg-2:      #F4ECE0;   /* sunken panels, table headers, chat composer */
   --bg-warm:   #FFF1E6;   /* soft section wash (gradient end) */
@@ -135,7 +137,7 @@ p { line-height: 1.6; }
 .tabs [role=tab][aria-selected=true] { background: #fff; color: var(--ink); box-shadow: 0 2px 8px rgba(31,18,38,0.08); }
 
 /* ── Brand mark ─────────────────────────────────────────────────────────── */
-.create { max-width: 1180px; margin: 0 auto; padding: 20px 16px 40px; }
+.create { max-width: var(--page-max); margin: 0 auto; padding: 20px 16px 40px; }
 .brand { display: flex; align-items: baseline; gap: 6px; margin-bottom: 28px; }
 .wordmark { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 20px; letter-spacing: -0.03em; color: var(--ink); }
 .wordmark b { font-weight: 800; color: inherit; }
