@@ -1114,3 +1114,116 @@
     display: flex;
   }
 }
+
+/* ───────── Step 3: Baraati App (Invite, RSVPs, Events, Info, Announcements) ───────── */
+
+.pl-invite-grid {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.pl-phone-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pl-qr-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.pl-qr-img {
+  width: 112px;
+  height: 112px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 6px;
+}
+
+.pl-more-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.pl-more-tile {
+  padding: 16px;
+  border-radius: var(--r-md);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.pl-stats-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.pl-event-edit-card {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.pl-ev-art-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pl-ev-art-img,
+.pl-ev-art-placeholder {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  border: 1px solid var(--line);
+}
+
+.pl-ev-art-placeholder {
+  background: var(--bg-2);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pl-ev-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pl-ev-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+@media (max-width: 860px) {
+  .pl-invite-grid,
+  .pl-event-edit-card {
+    grid-template-columns: 1fr;
+  }
+  .pl-stats-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .pl-stats-4 {
+    grid-template-columns: 1fr;
+  }
+}

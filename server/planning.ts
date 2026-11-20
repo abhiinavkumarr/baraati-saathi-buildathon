@@ -4,7 +4,7 @@ import { Router } from 'express';
 import { getDb, type Db } from './db.ts';
 import { HttpError } from './gemini.ts';
 import { hostWeddingRow } from './insights.ts';
-import { makeToken } from './wedding.ts';
+import { makeToken, normalizeDraft } from './wedding.ts';
 
 export const planningRouter = Router();
 
@@ -860,4 +860,45 @@ planningRouter.post('/host/:slug/seed-sample', async (req, res) => {
   const db = await getDb();
   const r = await seedSamplePlanning(db, w.id);
   res.json({ ok: true, ...r });
+});
+
+// ── Baraati App routes (§6): Events, Info & Questions ────────────────────────
+
+planningRouter.patch('/host/:slug/events', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.body?.t);
+  if (!Array.isArray(req.body?.events)) throw new HttpError(400, 'events must be an array.');
+  const next = normalizeDraft({ ...w.draft, events: req.body.events });
+  if (!next.events.length) throw new HttpError(400, 'Keep at least one ceremony.');
+  const db = await getDb();
+  await db.query('UPDATE weddings SET draft = $1, updated_at = now() WHERE id = $2', [JSON.stringify(next), w.id]);
+  res.json({ ok: true, events: next.events });
+});
+
+planningRouter.patch('/host/:slug/info', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.body?.t);
+  if (!Array.isArray(req.body?.info)) throw new HttpError(400, 'info must be an array.');
+  const next = normalizeDraft({ ...w.draft, info: req.body.info });
+  const db = await getDb();
+  await db.query('UPDATE weddings SET draft = $1, updated_at = now() WHERE id = $2', [JSON.stringify(next), w.id]);
+  res.json({ ok: true, info: next.info });
+});
+
+planningRouter.post('/host/:slug/questions/:id/answer', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.body?.t);
+  const id = req.params.id;
+  if (!UUID_RE.test(id)) throw new HttpError(404, 'Question not found.');
+  const answer = str(req.body?.answer, 600);
+  if (!answer) throw new HttpError(400, 'Answer is required.');
+  const db = await getDb();
+  const q = await db.query<{ question: string }>(
+    "UPDATE questions SET answer = $1, status = 'answered' WHERE id = $2 AND wedding_id = $3 RETURNING question",
+    [answer, id, w.id],
+  );
+  if (!q[0]) throw new HttpError(404, 'Question not found.');
+  const next = normalizeDraft({
+    ...w.draft,
+    info: [...w.draft.info.filter((i) => i.question !== q[0].question), { question: q[0].question, answer }],
+  });
+  await db.query('UPDATE weddings SET draft = $1, updated_at = now() WHERE id = $2', [JSON.stringify(next), w.id]);
+  res.json({ ok: true, info: next.info });
 });

@@ -34,10 +34,12 @@ export interface Proposal {
 
 interface GuestRow {
   id: string;
+  guest_token: string;
   name: string;
   phone: string | null;
-  status: 'yes' | 'no' | 'maybe';
+  status: 'yes' | 'no' | 'maybe' | 'pending';
   party_size: number;
+  group_name: string | null;
   created_at: string;
   extracted: {
     adults?: number; children?: number; arrival_date?: string; arrival_time?: string;
@@ -49,16 +51,21 @@ interface GuestRow {
 async function guestRows(weddingId: string): Promise<GuestRow[]> {
   const db = await getDb();
   return db.query<GuestRow & Record<string, unknown>>(
-    'SELECT id, name, phone, status, party_size, extracted, created_at FROM rsvps WHERE wedding_id = $1 ORDER BY created_at',
+    'SELECT id, guest_token, name, phone, status, party_size, group_name, extracted, created_at FROM rsvps WHERE wedding_id = $1 ORDER BY created_at',
     [weddingId],
   );
 }
 
-function inAudience(g: GuestRow, a: Audience): boolean {
+function inAudience(g: GuestRow, a: string): boolean {
+  if (a.startsWith('group:')) {
+    const target = a.slice(6).trim().toLowerCase();
+    return Boolean(target && (g.group_name ?? '').trim().toLowerCase() === target);
+  }
   if (a === 'all') return true;
   if (a === 'maybe') return g.status === 'maybe';
-  if (a === 'coming') return g.status !== 'no';
-  return g.status !== 'no' && Boolean(g.extracted?.needs_pickup);
+  if (a === 'coming') return g.status === 'yes' || g.status === 'maybe';
+  if (a === 'pickup') return (g.status === 'yes' || g.status === 'maybe') && Boolean(g.extracted?.needs_pickup);
+  return true;
 }
 
 const DIETS: [string, RegExp][] = [
@@ -70,7 +77,7 @@ const DIETS: [string, RegExp][] = [
 
 /** Numbers and chart series for the dashboard, computed without the model. */
 export function computeStats(rows: GuestRow[], draft: WeddingDraft) {
-  const coming = rows.filter((r) => r.status !== 'no');
+  const coming = rows.filter((r) => r.status === 'yes' || r.status === 'maybe');
   const heads = coming.reduce((n, r) => n + r.party_size, 0);
   const kids = coming.reduce((n, r) => n + (Number(r.extracted?.children) || 0), 0);
   const pickups = coming.filter((r) => r.extracted?.needs_pickup);
@@ -95,10 +102,11 @@ export function computeStats(rows: GuestRow[], draft: WeddingDraft) {
   const first = draft.events.map((e) => e.date).filter(Boolean).sort()[0];
   const daysTo = first ? Math.ceil((Date.parse(first) - Date.now()) / 86_400_000) : null;
   return {
-    replied: rows.length,
+    replied: rows.filter((r) => r.status !== 'pending').length,
     yes: rows.filter((r) => r.status === 'yes').length,
     maybe: rows.filter((r) => r.status === 'maybe').length,
     no: rows.filter((r) => r.status === 'no').length,
+    pending: rows.filter((r) => r.status === 'pending').length,
     heads,
     kids,
     pickups: pickups.length,
@@ -544,6 +552,38 @@ controlRouter.get('/host/:slug/briefing', async (req, res) => {
     }
   }
   res.json({ stats, briefing: insights, announcements: await recentAnnouncements(w.id, 5) });
+});
+
+controlRouter.get('/host/:slug/announcements', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.query.t);
+  const rows = await guestRows(w.id);
+  const groups = [...new Set(rows.map((r) => r.group_name).filter((g): g is string => Boolean(g)))].sort();
+  res.json({ announcements: await recentAnnouncements(w.id, 30), groups });
+});
+
+controlRouter.post('/host/:slug/announcements', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.body?.t);
+  const text_en = str(req.body?.text_en, 1000);
+  const text_hi = str(req.body?.text_hi, 1000);
+  if (!text_en) throw new HttpError(400, 'Announcement text is required.');
+  const rawAud = str(req.body?.audience, 80) || 'all';
+  const audience = AUDIENCES.includes(rawAud as Audience) || rawAud.startsWith('group:') ? rawAud : 'all';
+
+  const db = await getDb();
+  const inserted = await db.query<{ id: string; text_en: string; text_hi: string | null; audience: string; created_at: string }>(
+    'INSERT INTO announcements (wedding_id, text_en, text_hi, audience) VALUES ($1, $2, $3, $4) RETURNING id, text_en, text_hi, audience, created_at',
+    [w.id, text_en, text_hi || null, audience],
+  );
+  const invite = `${req.protocol}://${req.get('host')}/i/${w.slug}`;
+  const couple = `${w.draft.partner1_name} & ${w.draft.partner2_name}`;
+  const whatsapp = (await guestRows(w.id))
+    .filter((g) => inAudience(g, audience))
+    .map((g) => {
+      const num = waNumber(g.phone);
+      const text = `Namaste ${g.name} 🙏\n\n${text_hi ? `${text_hi}\n\n` : ''}${text_en}\n\n— ${couple}\n${invite}?g=${encodeURIComponent(g.guest_token)}`;
+      return { name: g.name, phone: num ? `••••${num.slice(-4)}` : '', url: num ? `https://wa.me/${num}?text=${encodeURIComponent(text)}` : '' };
+    });
+  res.status(201).json({ ok: true, announcement: inserted[0], whatsapp });
 });
 
 // ── Home: ranked "What needs you" + section counts (computed in code) ────────

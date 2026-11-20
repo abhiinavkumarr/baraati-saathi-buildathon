@@ -93,11 +93,15 @@ function ceremonyBrief(d: WeddingDraft, eventName: string): string {
   ].join(' ');
 }
 
-// Art for every ceremony, three at a time. Each failure is skipped, not fatal.
+// Art for every ceremony (or one ceremony if `event_name` is given), three at a time.
 designRouter.post('/weddings/:slug/event-art', async (req, res) => {
   const w = await hostWedding(req.params.slug, req.body?.host_token);
   const system = loadSkills('card-designer');
-  const events = w.draft.events.slice(0, 6);
+  const only = typeof req.body?.event_name === 'string' ? req.body.event_name.trim() : '';
+  const events = only
+    ? w.draft.events.filter((e) => e.name.toLowerCase() === only.toLowerCase()).slice(0, 1)
+    : w.draft.events.slice(0, 6);
+  if (!events.length) throw new HttpError(404, 'Ceremony not found.');
   const made: string[] = [];
   for (let i = 0; i < events.length; i += 3) {
     await Promise.all(events.slice(i, i + 3).map(async (e) => {

@@ -10,6 +10,11 @@ import { GuestsTab } from './pages/wedding/plan/GuestsTab.tsx';
 import { VendorsTab } from './pages/wedding/plan/VendorsTab.tsx';
 import { BudgetTab } from './pages/wedding/plan/BudgetTab.tsx';
 import { TasksTab } from './pages/wedding/plan/TasksTab.tsx';
+import { InviteTab } from './pages/wedding/app/InviteTab.tsx';
+import { RsvpsTab } from './pages/wedding/app/RsvpsTab.tsx';
+import { EventsTab } from './pages/wedding/app/EventsTab.tsx';
+import { InfoTab } from './pages/wedding/app/InfoTab.tsx';
+import { AnnouncementsTab } from './pages/wedding/app/AnnouncementsTab.tsx';
 import { WeddingProvider, useWedding } from './WeddingContext.tsx';
 
 // Minimal path router; the app has only a handful of pages.
@@ -86,14 +91,29 @@ function RouterView() {
           </section>
         );
       }
+    } else if (section === 'app') {
+      if (tab === 'invite') content = <InviteTab slug={slug} />;
+      else if (tab === 'rsvps') content = <RsvpsTab slug={slug} />;
+      else if (tab === 'events') content = <EventsTab slug={slug} />;
+      else if (tab === 'info') content = <InfoTab slug={slug} />;
+      else if (tab === 'announcements') content = <AnnouncementsTab slug={slug} />;
+      else {
+        content = (
+          <section className="card">
+            <p className="eyebrow">Baraati App</p>
+            <h1 className="h2" style={{ margin: '0 0 8px' }}>{tab}</h1>
+            <p className="muted">Coming right up in Step 6.</p>
+          </section>
+        );
+      }
     } else if (section === 'studio' && tab === 'invitation') {
       content = <Studio slug={slug} tokenOverride={token} embedded />;
     } else if (section !== 'home') {
       content = (
         <section className="card">
-          <p className="eyebrow">{section === 'app' ? 'Baraati App' : 'AI Studio'}</p>
+          <p className="eyebrow">AI Studio</p>
           <h1 className="h2" style={{ margin: '0 0 8px' }}>{tab}</h1>
-          <p className="muted">Coming right up in the next step.</p>
+          <p className="muted">Coming right up in Step 4.</p>
         </section>
       );
     }
