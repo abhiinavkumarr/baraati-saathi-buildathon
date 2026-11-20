@@ -153,7 +153,7 @@ export function Login() {
           </ul>
           {demoSlug && (
             <p className="login-guest-link">
-              Want to see the guest view first? <a href={`/i/${demoSlug}`} target="_blank" rel="noreferrer">Open sample guest invitation ↗</a>
+              Want to see the guest view first? <a href="/templates" target="_blank" rel="noreferrer">See sample invitations in every style ↗</a>
             </p>
           )}
         </section>

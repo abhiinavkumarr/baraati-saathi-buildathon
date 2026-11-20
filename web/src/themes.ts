@@ -40,3 +40,13 @@ export function ornamentUrl(style: string): string {
       <circle cx="40" cy="0" r="2"/><circle cx="40" cy="80" r="2"/></g></svg>`;
   return `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`;
 }
+
+/** The six invitation styles, in the order hosts and guests see them. */
+export const TEMPLATE_STYLES: { id: string; label: string; sub: string }[] = [
+  { id: 'royal-rajasthani', label: 'Royal Rajasthani', sub: 'Arches, peacocks, maroon and gold' },
+  { id: 'south-indian-temple', label: 'South Indian temple', sub: 'Gopurams, brass lamps, jasmine' },
+  { id: 'bengali-alpana', label: 'Bengali alpana', sub: 'Rice-paste patterns, red and white' },
+  { id: 'punjabi-phulkari', label: 'Punjabi phulkari', sub: 'Embroidery, marigolds, magenta' },
+  { id: 'minimal-pastel', label: 'Minimal pastel', sub: 'Fine-line florals, blush and sage' },
+  { id: 'modern-floral', label: 'Modern floral', sub: 'Watercolour roses, gold foil' },
+];

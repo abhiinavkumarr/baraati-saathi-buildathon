@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { fileToAttachment, post, type Attachment, type WeddingDraft } from '../api.ts';
-import { ornamentUrl, themeFor } from '../themes.ts';
+import { ornamentUrl, TEMPLATE_STYLES, themeFor } from '../themes.ts';
 import { fmtDate, fmtTime, storage } from '../format.ts';
 import { Saathi } from '../Saathi.tsx';
 
@@ -97,13 +97,20 @@ export function Invite({ slug }: { slug: string }) {
   if (!w) return <main className="invite-loading">Opening your invitation…</main>;
 
   const d = w.draft;
-  const t = themeFor(d.style);
-  const art = w.assets.card_art ? `url(/api/assets/${w.assets.card_art})` : ornamentUrl(d.style);
+  // ?style=<id> (from the templates gallery) shows this invitation in another
+  // style. Its AI artwork belongs to the original style, so it is left out.
+  const styleParam = new URLSearchParams(location.search).get('style') ?? '';
+  const template = TEMPLATE_STYLES.find((s) => s.id === styleParam);
+  const style = template?.id ?? d.style;
+  const ownArt = style === d.style;
+  const cardArt = ownArt ? w.assets.card_art : undefined;
+  const t = themeFor(style);
+  const art = cardArt ? `url(/api/assets/${cardArt})` : ornamentUrl(style);
   const vars = {
     '--i-bg': t.bg, '--i-panel': t.panel, '--i-ink': t.ink, '--i-accent': t.accent, '--i-soft': t.soft,
     '--i-display': t.display, '--i-art': art,
     // The built-in ornament is a small tile that repeats; AI artwork fills the screen.
-    '--i-art-size': w.assets.card_art ? 'cover' : '120px',
+    '--i-art-size': cardArt ? 'cover' : '120px',
   } as CSSProperties;
   const dates = [...new Set(d.events.map((e) => e.date).filter(Boolean))].sort();
   const dateLine = dates.length > 1
@@ -112,6 +119,9 @@ export function Invite({ slug }: { slug: string }) {
 
   return (
     <div className={`invite ${open ? 'is-open' : ''}`} style={vars}>
+      {template && (
+        <a className="template-back" href="/templates">← All styles · <b>{template.label}</b></a>
+      )}
       {gate !== 'gone' && (
         <button
           className={`gate ${gate}`}
@@ -191,7 +201,7 @@ export function Invite({ slug }: { slug: string }) {
               </p>
             )}
             {evs.map((e, i) => {
-              const artId = w.assets.events?.[e.name];
+              const artId = ownArt ? w.assets.events?.[e.name] : undefined;
               return (
                 <article key={e.name + i} className={`event reveal ${artId ? 'has-art' : ''}`} style={{ transitionDelay: `${(i % 3) * 90}ms` }}>
                   {artId && (

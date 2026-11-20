@@ -1523,3 +1523,23 @@
 }
 .pl-mic-pill { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .pl-mic-pill.rec { background: var(--rose-ink); color: #fff; box-shadow: 0 0 0 4px rgba(255, 77, 109, .2); }
+
+/* ── Invitation styles gallery (/templates) ────────────────────────────── */
+.tpl-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 22px; }
+.tpl-card { display: flex; flex-direction: column; height: 100%; text-decoration: none; color: var(--ink); background: var(--card);
+  border: 1px solid var(--line); border-radius: var(--r-card); overflow: hidden; box-shadow: var(--shadow-card);
+  transition: transform var(--t-fast), box-shadow var(--t-fast); }
+.tpl-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-float); }
+.tpl-card:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+.tpl-preview { display: grid; place-items: center; aspect-ratio: 4 / 3; padding: 22px; background: var(--tpl-art) center / var(--tpl-art-size), var(--tpl-bg); }
+.tpl-panel { display: flex; flex-direction: column; align-items: center; gap: 4px; width: min(250px, 86%); padding: 20px 16px; text-align: center;
+  background: var(--tpl-panel); border-radius: 18px; outline: 1.5px solid var(--tpl-accent); outline-offset: -7px; box-shadow: 0 14px 30px rgba(0,0,0,.25); }
+.tpl-eyebrow { font-size: 8px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--tpl-soft); }
+.tpl-names { font-family: var(--tpl-display); font-weight: 600; font-size: 30px; line-height: 1.05; color: var(--tpl-ink); }
+.tpl-names i { color: var(--tpl-accent); font-size: .7em; }
+.tpl-date { font-size: 12px; font-weight: 600; color: var(--tpl-ink); margin-top: 4px; }
+.tpl-city { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 15px; color: var(--tpl-ink); }
+.tpl-meta { display: flex; flex-direction: column; gap: 4px; padding: 16px 20px 20px; }
+.tpl-meta b { font-size: 17px; }
+.tpl-open { margin-top: 6px; color: var(--rose-ink); font-weight: 600; font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { .tpl-card, .tpl-card:hover { transition: none; transform: none; } }

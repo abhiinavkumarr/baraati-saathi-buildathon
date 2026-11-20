@@ -179,3 +179,8 @@
   .names { font-size: clamp(64px, 7vw, 92px); }
   .couple-art img { width: 380px; }
 }
+
+/* Back to the styles gallery when an invitation is shown in another style */
+.template-back { position: fixed; top: 14px; left: 14px; z-index: 30; padding: 9px 16px; border-radius: 999px; background: rgba(255,255,255,.94);
+  color: #1F1226; font-size: 14px; text-decoration: none; box-shadow: 0 10px 26px rgba(0,0,0,.2); }
+.template-back:focus-visible { outline: 3px solid #1F1226; outline-offset: 2px; }

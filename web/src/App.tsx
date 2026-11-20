@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Invite } from './pages/Invite.tsx';
+import { Templates } from './pages/Templates.tsx';
 import { Studio } from './pages/Studio.tsx';
 import { Login } from './pages/Login.tsx';
 import { MyWeddings } from './pages/MyWeddings.tsx';
@@ -39,6 +40,8 @@ function RouterView() {
     window.addEventListener('popstate', on);
     return () => window.removeEventListener('popstate', on);
   }, []);
+
+  if (path === '/templates') return <Templates />;
 
   // Public invitation (unchanged)
   const invMatch = path.match(/^\/i\/([\w-]+)/);
