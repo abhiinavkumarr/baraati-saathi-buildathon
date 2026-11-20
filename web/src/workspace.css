@@ -23,7 +23,7 @@
 .login-highlights { list-style: none; padding: 0; margin: 0 0 18px; display: flex; flex-direction: column; gap: 10px; }
 .login-highlights li { background: rgba(255, 255, 255, 0.72); border: 1px solid var(--line); border-radius: 14px; padding: 11px 14px; font-size: 14.5px; line-height: 1.45; }
 .login-guest-link { font-size: 14px; color: var(--muted); }
-.login-guest-link a { color: var(--rose); font-weight: 600; }
+.login-guest-link a { color: var(--rose-ink); font-weight: 600; }
 
 .login-card {
   background: #fff;
@@ -70,7 +70,7 @@
   border: 0;
   border-radius: 100px;
   padding: 14px 20px;
-  background: var(--rose);
+  background: var(--grad-cta);
   color: #fff;
   font-weight: 700;
   font-size: 15.5px;
@@ -190,7 +190,7 @@
 
 .ws-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
 .ws-ev-card h3 { font-family: var(--display); font-size: 28px; margin: 4px 0 8px; }
-.ws-map-link { display: inline-block; margin-top: 8px; font-size: 13.5px; font-weight: 600; color: var(--rose); text-decoration: none; }
+.ws-map-link { display: inline-block; margin-top: 8px; font-size: 13.5px; font-weight: 600; color: var(--rose-ink); text-decoration: none; }
 
 .ws-inline-form { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
 .ws-inline-form input { flex: 1; min-width: 140px; border: 1.5px solid var(--line); border-radius: 100px; padding: 9px 14px; font: inherit; background: var(--cream); }

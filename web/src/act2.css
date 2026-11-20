@@ -84,7 +84,7 @@
 .rsvp-ticket { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1.5px dashed rgba(0,0,0,.22); border-radius: 12px; background: rgba(255,255,255,.7); }
 .rsvp-ticket .ticket-btn { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--i-ink); }
 .rsvp-ticket small { font-size: 12.5px; color: var(--i-soft); }
-.rsvp-ticket .ticket-clear { align-self: flex-start; border: 0; background: none; color: var(--rose); font-size: 13px; font-weight: 600; padding: 0; }
+.rsvp-ticket .ticket-clear { align-self: flex-start; border: 0; background: none; color: var(--rose-ink); font-size: 13px; font-weight: 600; padding: 0; }
 .my-plan { background: var(--i-panel); border-radius: 22px; padding: 22px; text-align: center; box-shadow: 0 14px 34px rgba(0,0,0,.18); }
 .my-plan-status { font-weight: 700; font-size: 17px; margin: 0 0 12px; color: var(--i-ink); }
 .my-plan-list { list-style: none; padding: 0; margin: 0 0 14px; text-align: left; display: flex; flex-direction: column; gap: 8px; background: rgba(255,255,255,.75); border-radius: 14px; padding: 12px 14px; font-size: 14.5px; }
@@ -109,7 +109,7 @@
 .job-text span { font-size: 13px; color: var(--muted); }
 .job-state { font-size: 13px; color: var(--muted); }
 .job-state.ok { color: #1e7a4f; font-weight: 600; }
-.link { border: 0; background: none; color: var(--rose); font-weight: 600; }
+.link { border: 0; background: none; color: var(--rose-ink); font-weight: 600; }
 .share { display: flex; gap: 18px; align-items: center; padding: 18px; border-radius: 20px; background: #fff; border: 1.5px solid var(--line); flex-wrap: wrap; margin-top: 14px; }
 .qr { width: 150px; height: 150px; }
 .share-actions { display: flex; flex-direction: column; gap: 8px; }
@@ -138,7 +138,7 @@
 .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .badge { font-size: 12px; padding: 3px 9px; border-radius: 100px; background: #fff; border: 1px solid var(--line); }
 .badge.yes { color: #1e7a4f; }
-.badge.no { color: var(--rose); }
+.badge.no { color: var(--bad); }
 .badge.ai { background: #efeaff; border-color: #d8ceff; color: #4b3bb5; }
 .badge.warn { background: #fff3cd; border-color: #f0cf65; color: #7a4b00; font-weight: 600; }
 .note { margin: 6px 0 0; font-size: 14px; color: var(--ink-2); font-style: italic; }
