@@ -257,7 +257,7 @@ export function Workspace({
                 <p className="muted">Create a wedding from a card photo, PDF, voice note or chat — then generate art, music and send invites.</p>
               </div>
               {active && (
-                <div className="tabs" role="group" aria-label="Invitation view">
+                <div className="tabs" role="tablist" aria-label="Invitation view">
                   <button type="button" role="tab" aria-selected={inviteMode === 'studio'} onClick={() => setInviteMode('studio')}>
                     Card Studio &amp; Send
                   </button>

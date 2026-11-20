@@ -81,7 +81,7 @@ export function Studio({
     <main className="studio">
       {!embedded && (
         <header className="brand">
-          <span className="wordmark"><b>B</b>ARAATI</span> <span className="tag">Saathi</span>
+          <span className="wordmark">Baraati</span> <span className="tag">Saathi</span>
         </header>
       )}
 
@@ -115,16 +115,16 @@ export function Studio({
           />
           {msg && <p className="error" role="alert">{msg}</p>}
 
-          <div className="share">
+          <div className="share card">
             <img className="qr" src={`/api/qr?url=${encodeURIComponent(inviteUrl)}`} alt="QR code for the invitation" />
             <div className="share-actions">
-              <a className="pill solid" href={`https://wa.me/?text=${waText}`} target="_blank" rel="noreferrer">Share on WhatsApp</a>
+              <a className="btn btn-cta btn-sm" href={`https://wa.me/?text=${waText}`} target="_blank" rel="noreferrer">Share on WhatsApp</a>
               <CopyButton text={inviteUrl} />
-              <button className="pill" onClick={() => void download()}>Download card</button>
+              <button className="btn btn-outline btn-sm" onClick={() => void download()}>Download card</button>
               {onOpenDashboard ? (
-                <button className="pill" onClick={onOpenDashboard}>Control room →</button>
+                <button className="btn btn-outline btn-sm" onClick={onOpenDashboard}>Control room →</button>
               ) : (
-                <a className="pill" href={hostUrl}>Guest dashboard →</a>
+                <a className="btn btn-outline btn-sm" href={hostUrl}>Guest dashboard →</a>
               )}
             </div>
           </div>
@@ -146,7 +146,7 @@ function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
-      className="pill"
+      className="btn btn-ghost btn-sm"
       aria-live="polite"
       onClick={async () => {
         try {
@@ -167,12 +167,16 @@ function JobRow({ label, sub, state, onRetry, idleLabel = 'Retry' }: {
   label: string; sub: string; state: Job; onRetry: () => void; idleLabel?: string;
 }) {
   return (
-    <li className={`job ${state}`}>
-      <span className="dot" aria-hidden />
-      <span className="job-text"><b>{label}</b><span>{sub}</span></span>
-      {state === 'working' && <span className="job-state" role="status">Creating…</span>}
-      {state === 'done' && <span className="job-state ok">Ready</span>}
-      {(state === 'failed' || state === 'idle') && <button className="link" onClick={onRetry}>{state === 'failed' ? 'Retry' : idleLabel}</button>}
+    <li className={`job card-sm ${state}`}>
+      <div className="job-row-top">
+        <span className="dot" aria-hidden />
+        <span className="job-text"><b>{label}</b><span>{sub}</span></span>
+        {state === 'working' && <span className="badge ai" role="status">✦ Creating…</span>}
+        {state === 'done' && <span className="badge ok">Ready</span>}
+        {state === 'failed' && <button className="btn btn-ghost btn-sm" onClick={onRetry}>Retry</button>}
+        {state === 'idle' && <button className="btn btn-ghost btn-sm" onClick={onRetry}>{idleLabel}</button>}
+      </div>
+      {state === 'working' && <div className="job-bar" aria-hidden><span /></div>}
     </li>
   );
 }

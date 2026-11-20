@@ -152,7 +152,7 @@ export function Create({
     <main className="create">
       {!embedded && (
         <header className="brand">
-          <span className="wordmark"><b>B</b>ARAATI</span> <span className="tag">Saathi</span>
+          <span className="wordmark">Baraati</span> <span className="tag">Saathi</span>
         </header>
       )}
 
@@ -172,29 +172,31 @@ export function Create({
         <section className="landing">
           <div className="land-hero">
             <div className="land-copy">
-              <p className="eyebrow">AI for Indian weddings</p>
-              <h1 className="display">From a wedding card to a <em>voice concierge</em>, in minutes.</h1>
-              <p>Upload your card or just talk. Saathi designs a living invitation, answers every guest in Hindi or English, and runs your guest list for you.</p>
-              {demo && <a className="land-demo" href={`/i/${demo}`} target="_blank" rel="noreferrer">See a live invitation ↗</a>}
+              <span className="chip land-chip"><span className="dot" aria-hidden /> AI for Indian weddings</span>
+              <h1 className="display">From a wedding card to a <span className="serif grad-text">voice concierge</span>, in minutes.</h1>
+              <p className="lead">Upload your card or just talk. Saathi designs a living invitation, answers every guest in Hindi or English, and runs your guest list for you.</p>
+              {demo && <a className="btn btn-ghost" href={`/i/${demo}`} target="_blank" rel="noreferrer">See a live invitation ↗</a>}
             </div>
-            <div className="land-phone" aria-hidden={!demo}>
-              {demo ? <iframe title="A sample invitation" src={`/i/${demo}?preview=1`} tabIndex={-1} /> : <span className="land-orn" />}
+            <div className="land-phone-wrap">
+              <div className="land-phone" aria-hidden={!demo}>
+                {demo ? <iframe title="A sample invitation" src={`/i/${demo}?preview=1`} tabIndex={-1} /> : <span className="land-orn" />}
+              </div>
             </div>
           </div>
           <ol className="land-steps">
-            <li><b>1 · Card → wedding</b><span>Gemini reads your printed card, PDF or voice note.</span></li>
-            <li><b>2 · A living invitation</b><span>Nano Banana art for every ceremony, Lyria music.</span></li>
-            <li><b>3 · Saathi for guests</b><span>Answers in Hindi by voice, on Gemini Live.</span></li>
-            <li><b>4 · Your control room</b><span>Ask, update and message guests in one line.</span></li>
+            <li><span className="step-num" aria-hidden>1</span><b>1 · Card → wedding</b><span>Gemini reads your printed card, PDF or voice note.</span></li>
+            <li><span className="step-num" aria-hidden>2</span><b>2 · A living invitation</b><span>Nano Banana art for every ceremony, Lyria music.</span></li>
+            <li><span className="step-num" aria-hidden>3</span><b>3 · Saathi for guests</b><span>Answers in Hindi by voice, on Gemini Live.</span></li>
+            <li><span className="step-num" aria-hidden>4</span><b>4 · Your control room</b><span>Ask, update and message guests in one line.</span></li>
           </ol>
-          <h2 className="land-start">Start your wedding</h2>
+          <h2 className="land-start h2">Start your <span className="serif">wedding</span></h2>
           <div className="choices">
-            <button className="choice" onClick={() => start('card')}>
+            <button className="choice card card-hover" onClick={() => start('card')}>
               <span className="icon" aria-hidden>📜</span>
               <b>I have a card</b>
               <span>Upload a photo, PDF or WhatsApp forward</span>
             </button>
-            <button className="choice" onClick={() => start('scratch')}>
+            <button className="choice card card-hover" onClick={() => start('scratch')}>
               <span className="icon" aria-hidden>✨</span>
               <b>Create one from scratch</b>
               <span>Chat or speak, in English or Hindi</span>
@@ -255,11 +257,11 @@ export function Create({
               <button type="button" className={`icon-btn ${recording ? 'rec' : ''}`} title="Voice note" aria-label={recording ? 'Stop recording and send' : 'Record a voice note'} aria-pressed={recording} onClick={() => void toggleMic()}>
                 {recording ? '■' : '🎙️'}
               </button>
-              <button type="submit" className="send" disabled={busy}>Send</button>
+              <button type="submit" className="btn btn-primary" disabled={busy}>Send</button>
             </form>
           </div>
 
-          <aside className="preview" aria-label="Your invitation so far">
+          <aside className="preview card" aria-label="Your invitation so far">
             <p className="eyebrow">Your invitation, live</p>
             <LiveCard draft={draft} />
             <ul className="checklist" aria-label="What Saathi still needs">
@@ -268,7 +270,7 @@ export function Create({
               <Check ok={draft.events.some((e) => e.date && e.venue_name)} label="Dates & venues" />
               <Check ok={Boolean(draft.style)} label="Style" />
             </ul>
-            <button className="primary" disabled={!ready || busy} onClick={() => void design()}>
+            <button className="btn btn-cta login-full" disabled={!ready || busy} onClick={() => void design()}>
               {ready ? 'Design my invitation →' : 'A few details to go'}
             </button>
           </aside>
