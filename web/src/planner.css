@@ -1543,3 +1543,11 @@
 .tpl-meta b { font-size: 17px; }
 .tpl-open { margin-top: 6px; color: var(--rose-ink); font-weight: 600; font-size: 14px; }
 @media (prefers-reduced-motion: reduce) { .tpl-card, .tpl-card:hover { transition: none; transform: none; } }
+
+/* Banner inside the shared, view-only demo wedding */
+.pl-demo-strip { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; background: var(--ai-bg); border-color: rgba(91, 63, 217, .18); }
+.pl-demo-strip p { flex: 1; min-width: 220px; margin: 0; font-size: 14px; color: var(--ink-2); }
+.pl-toast-wrap { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 80; width: min(560px, calc(100% - 32px)); pointer-events: none; }
+.pl-toast { pointer-events: auto; display: flex; align-items: center; gap: 12px; padding: 12px 14px 12px 18px; border-radius: var(--r-md);
+  background: var(--ink); color: var(--on-ink); font-size: 14px; box-shadow: var(--shadow-float); }
+.pl-toast span { flex: 1; }

@@ -411,6 +411,11 @@ export function NewWedding() {
     setDemoBusy(true);
     setError('');
     try {
+      const demo = weddings.find((w) => w.demo);
+      if (demo) {
+        navigate(`/w/${demo.slug}`);
+        return;
+      }
       const w = await createSampleWedding(session?.session);
       await refreshWeddings();
       navigate(`/w/${w.slug}`);

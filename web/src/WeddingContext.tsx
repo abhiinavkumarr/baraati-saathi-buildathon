@@ -11,6 +11,8 @@ export interface ListedWedding {
   days?: number | null;
   city?: string;
   logo_url?: string | null;
+  /** The shared read-only demo wedding (Meera & Rohan), shown to everyone. */
+  demo?: true;
 }
 
 interface WeddingContextValue {

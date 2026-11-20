@@ -9,6 +9,7 @@ import { insightsRouter } from './insights.ts';
 import { controlRouter } from './control.ts';
 import { authRouter } from './auth.ts';
 import { planningRouter } from './planning.ts';
+import { demoGuard, demoRouter, ensurePlannerDemo } from './demo.ts';
 import { HttpError, MODELS } from './gemini.ts';
 import { getDb } from './db.ts';
 import { skillMenu } from './skills.ts';
@@ -43,6 +44,8 @@ app.use(/^\/api\/host\/[^/]+\/ask$/, rateLimit('ask', 30, TEN_MIN));
 app.use(/^\/api\/host\/[^/]+\/agent$/, rateLimit('agent', 40, TEN_MIN));
 app.use(/^\/api\/host\/[^/]+\/(apply|briefing|home)$/, rateLimit('host', 300, TEN_MIN));
 app.use(/^\/api\/host\/[^/]+\/(tasks\/suggest|tasks\/from-voice|sheets\/suggest|guests\/import-preview|guests\/sheet-link|vendors\/read-quote)$/, rateLimit('planner-ai', 60, TEN_MIN));
+app.use(demoGuard); // the shared demo wedding is read-only
+app.use('/api', demoRouter);
 app.use('/api', authRouter);
 app.use('/api', intakeRouter);
 app.use('/api', designRouter);
@@ -73,5 +76,5 @@ const onError: ErrorRequestHandler = (err, _req, res, _next) => {
 app.use(onError);
 
 const port = Number(process.env.PORT) || 8080;
-await getDb();
+await ensurePlannerDemo(await getDb());
 app.listen(port, () => console.log(`[saathi] listening on http://localhost:${port}`));

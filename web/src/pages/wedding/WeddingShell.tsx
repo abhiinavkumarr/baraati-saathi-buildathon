@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { navigate } from '../../App.tsx';
 import { useWedding } from '../../WeddingContext.tsx';
 import { AskSaathiDrawer } from '../../components/agent/AskSaathiDrawer.tsx';
@@ -55,6 +55,22 @@ export function WeddingShell({
     .toUpperCase() || '✦';
 
   const unlockedWeddings = weddings.filter((w) => !w.locked);
+
+  // A change refused because this is the view-only demo wedding.
+  const [demoNotice, setDemoNotice] = useState('');
+  useEffect(() => {
+    let timer = 0;
+    const on = (e: Event) => {
+      setDemoNotice(String((e as CustomEvent).detail || "The demo wedding is view-only."));
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setDemoNotice(''), 5000);
+    };
+    window.addEventListener('saathi:demo-readonly', on);
+    return () => {
+      window.removeEventListener('saathi:demo-readonly', on);
+      window.clearTimeout(timer);
+    };
+  }, []);
 
   return (
     <div className="pl-shell">
@@ -160,7 +176,29 @@ export function WeddingShell({
         )}
       </header>
 
-      <main className="pl-main">{children}</main>
+      <main className="pl-main">
+        {wedding?.demo && (
+          <div className="card card-sm pl-demo-strip" role="note">
+            <span className="badge ai">Demo wedding</span>
+            <p>
+              You&apos;re exploring Meera &amp; Rohan&apos;s sample wedding. It&apos;s view-only: look around and ask Saathi
+              anything, but changes aren&apos;t saved.
+            </p>
+            <button type="button" className="btn btn-cta btn-sm" onClick={() => navigate('/new')}>
+              Create your wedding →
+            </button>
+          </div>
+        )}
+        {children}
+      </main>
+      <div className="pl-toast-wrap" role="status" aria-live="polite">
+        {demoNotice && (
+          <div className="pl-toast">
+            <span>{demoNotice}</span>
+            <button type="button" className="btn btn-white btn-sm" onClick={() => navigate('/new')}>Create yours</button>
+          </div>
+        )}
+      </div>
 
       <AskSaathiDrawer slug={slug} token={token} />
     </div>

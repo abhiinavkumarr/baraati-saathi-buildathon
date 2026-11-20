@@ -122,6 +122,7 @@ export function MyWeddings() {
                       </span>
                     )}
                     {w.private && <span className="badge">Private</span>}
+                    {w.demo && <span className="badge ai">Demo · view only</span>}
                   </div>
                   <h2 className="h3">{w.couple}</h2>
                   <p className="muted small">

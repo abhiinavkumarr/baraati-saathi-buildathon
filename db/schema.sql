@@ -31,6 +31,7 @@ ALTER TABLE weddings ADD COLUMN IF NOT EXISTS host_side text;
 ALTER TABLE weddings ADD COLUMN IF NOT EXISTS expected_guests int;
 ALTER TABLE weddings ADD COLUMN IF NOT EXISTS hashtag text;
 ALTER TABLE weddings ADD COLUMN IF NOT EXISTS private boolean NOT NULL DEFAULT false;
+ALTER TABLE weddings ADD COLUMN IF NOT EXISTS is_demo boolean NOT NULL DEFAULT false;  -- shared read-only demo (server/demo.ts)
 CREATE INDEX IF NOT EXISTS weddings_owner ON weddings (owner_user_id, created_at DESC);
 
 -- Generated media (card art, couple illustration, ceremony art, music, logo, teaser).

@@ -90,6 +90,8 @@ export interface ListedWedding {
   days?: number | null;
   city?: string;
   logo_url?: string | null;
+  /** The shared read-only demo wedding, listed for every user. */
+  demo?: true;
 }
 
 /** List weddings owned by `userId`. Private weddings require matching `passcode`. */
@@ -103,8 +105,11 @@ export async function listUserWeddings(db: Db, userId: string, passcode?: string
     host_token: string;
     draft: WeddingDraft;
     private: boolean;
+    is_demo: boolean;
   }>(
-    'SELECT id, slug, host_token, draft, private FROM weddings WHERE owner_user_id = $1 ORDER BY created_at DESC',
+    `SELECT id, slug, host_token, draft, private, is_demo FROM weddings
+      WHERE owner_user_id = $1 OR is_demo
+      ORDER BY is_demo, created_at DESC`,
     [userId],
   );
 
@@ -125,6 +130,7 @@ export async function listUserWeddings(db: Db, userId: string, passcode?: string
       private: w.private,
       city: d.city || '',
       logo_url: d.logo_asset_id ? `/api/assets/${d.logo_asset_id}` : null,
+      ...(w.is_demo ? { demo: true as const } : {}),
     };
   });
 }

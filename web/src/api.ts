@@ -88,6 +88,9 @@ export async function apiJson<T>(url: string, init: RequestInit = {}, sessionTok
   const headers = authHeaders(init.headers as Record<string, string> | undefined, sessionToken);
   const res = await fetch(url, { ...init, headers });
   const json = await res.json().catch(() => ({}));
+  // The shared demo wedding refuses changes; WeddingShell shows one notice for
+  // every page, even where a button has no error message of its own.
+  if (res.status === 403 && json.demo) window.dispatchEvent(new CustomEvent('saathi:demo-readonly', { detail: json.error }));
   if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`);
   return json as T;
 }
