@@ -24,6 +24,8 @@ app.get('/api/health', async (_req, res) => {
     gemini: Boolean(process.env.GEMINI_API_KEY),
     models: MODELS,
     skills: skillMenu().map((s) => s.name),
+    // The public sample invitation shown on the landing page (no host token).
+    demo: process.env.DEMO_SLUG || null,
   });
 });
 

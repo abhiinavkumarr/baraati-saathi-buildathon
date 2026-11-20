@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { navigate } from '../App.tsx';
 import { fileToAttachment, post, type Attachment, type IntakeResponse, type WeddingDraft } from '../api.ts';
 import { fmtDate as fmtD } from '../format.ts';
+import { ornamentUrl, themeFor } from '../themes.ts';
 
 interface Turn {
   role: 'host' | 'saathi';
@@ -13,6 +14,15 @@ const EMPTY: WeddingDraft = {
   partner1_name: '', partner2_name: '', partner1_family: '', partner2_family: '', invite_line: '',
   city: '', tradition: '', language: '', style: '', events: [], info: [], contact_name: '', contact_phone: '',
 };
+
+const STYLE_TILES: [string, string, string][] = [
+  ['royal-rajasthani', 'Royal Rajasthani', 'Arches, peacocks, maroon and gold'],
+  ['south-indian-temple', 'South Indian temple', 'Gopurams, brass lamps, jasmine'],
+  ['bengali-alpana', 'Bengali alpana', 'Rice-paste patterns, red and white'],
+  ['punjabi-phulkari', 'Punjabi phulkari', 'Embroidery, marigolds, magenta'],
+  ['minimal-pastel', 'Minimal pastel', 'Fine-line florals, blush and sage'],
+  ['modern-floral', 'Modern floral', 'Watercolour roses, gold foil'],
+];
 
 const OPENERS = {
   card: 'Upload a photo or PDF of your wedding card, or a WhatsApp forward. I\'ll read every ceremony, date and venue from it.',
@@ -33,6 +43,10 @@ export function Create() {
   const recorder = useRef<MediaRecorder | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const [demo, setDemo] = useState<string | null>(null);
+  useEffect(() => {
+    fetch('/api/health').then((r) => r.json()).then((h) => setDemo(h.demo ?? null)).catch(() => {});
+  }, []);
 
   // Braces matter: newer browsers return a Promise from scrollIntoView, and
   // React would call that as this effect's cleanup and crash the page.
@@ -142,9 +156,25 @@ export function Create() {
       />
 
       {!mode ? (
-        <section className="choose">
-          <h1 className="display">Your wedding, ready to share in minutes.</h1>
-          <p className="muted">Start from the card you already have, or tell Saathi about your wedding and we'll design one.</p>
+        <section className="landing">
+          <div className="land-hero">
+            <div className="land-copy">
+              <p className="eyebrow">AI for Indian weddings</p>
+              <h1 className="display">From a wedding card to a <em>voice concierge</em>, in minutes.</h1>
+              <p>Upload your card or just talk. Saathi designs a living invitation, answers every guest in Hindi or English, and runs your guest list for you.</p>
+              {demo && <a className="land-demo" href={`/i/${demo}`} target="_blank" rel="noreferrer">See a live invitation ↗</a>}
+            </div>
+            <div className="land-phone" aria-hidden={!demo}>
+              {demo ? <iframe title="A sample invitation" src={`/i/${demo}?preview=1`} tabIndex={-1} /> : <span className="land-orn" />}
+            </div>
+          </div>
+          <ol className="land-steps">
+            <li><b>1 · Card → wedding</b><span>Gemini reads your printed card, PDF or voice note.</span></li>
+            <li><b>2 · A living invitation</b><span>Nano Banana art for every ceremony, Lyria music.</span></li>
+            <li><b>3 · Saathi for guests</b><span>Answers in Hindi by voice, on Gemini Live.</span></li>
+            <li><b>4 · Your control room</b><span>Ask, update and message guests in one line.</span></li>
+          </ol>
+          <h2 className="land-start">Start your wedding</h2>
           <div className="choices">
             <button className="choice" onClick={() => start('card')}>
               <span className="icon" aria-hidden>📜</span>
@@ -174,7 +204,19 @@ export function Create() {
 
             {error && <p className="error" role="alert">{error}</p>}
 
-            {suggestions.length > 0 && !busy && (
+            {!busy && !draft.style && draft.partner1_name && draft.events.length > 0 && (
+              <div className="style-tiles" role="group" aria-label="Pick a style">
+                {STYLE_TILES.map(([id, label, sub]) => (
+                  <button key={id} className="style-tile" onClick={() => void send(label, [])}>
+                    <span className="st-swatch" style={{ background: `${ornamentUrl(id)} center / 60px` }} aria-hidden />
+                    <b>{label}</b>
+                    <small>{sub}</small>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {suggestions.length > 0 && !busy && !(!draft.style && draft.partner1_name && draft.events.length > 0) && (
               <div className="chips">
                 {suggestions.map((s) => (
                   <button key={s} className="chip" onClick={() => void send(s, [])}>{s}</button>
@@ -204,24 +246,15 @@ export function Create() {
             </form>
           </div>
 
-          <aside className="preview" aria-label="Wedding details so far">
-            <p className="eyebrow">Your wedding</p>
-            <h2 className="display couple">
-              {draft.partner1_name || '—'} <span className="amp">&amp;</span> {draft.partner2_name || '—'}
-            </h2>
-            <p className="muted small">
-              {[draft.city, draft.tradition, draft.style].filter(Boolean).join(' · ') || 'Details appear here as Saathi learns them.'}
-            </p>
-            {draft.invite_line && <p className="invite-line">{draft.invite_line}</p>}
-            <ol className="events">
-              {draft.events.map((e, i) => (
-                <li key={i}>
-                  <b>{e.name}</b>
-                  <span>{[fmtDate(e.date), e.start_time].filter(Boolean).join(' · ') || 'date to confirm'}</span>
-                  <span className="muted">{e.venue_name || 'venue to confirm'}</span>
-                </li>
-              ))}
-            </ol>
+          <aside className="preview" aria-label="Your invitation so far">
+            <p className="eyebrow">Your invitation, live</p>
+            <LiveCard draft={draft} />
+            <ul className="checklist" aria-label="What Saathi still needs">
+              <Check ok={Boolean(draft.partner1_name && draft.partner2_name)} label="Couple" />
+              <Check ok={draft.events.some((e) => e.date)} label={`Ceremonies${draft.events.length ? ` · ${draft.events.length}` : ''}`} />
+              <Check ok={draft.events.some((e) => e.date && e.venue_name)} label="Dates & venues" />
+              <Check ok={Boolean(draft.style)} label="Style" />
+            </ul>
             <button className="primary" disabled={!ready || busy} onClick={() => void design()}>
               {ready ? 'Design my invitation →' : 'A few details to go'}
             </button>
@@ -233,3 +266,38 @@ export function Create() {
 }
 
 const fmtDate = (iso: string) => fmtD(iso, { weekday: 'short', day: 'numeric', month: 'short' });
+
+function Check({ ok, label }: { ok: boolean; label: string }) {
+  return <li className={ok ? 'ok' : ''}><span aria-hidden>{ok ? '✓' : '○'}</span> {label}<span className="sr-only">{ok ? ' done' : ' still needed'}</span></li>;
+}
+
+/** A miniature of the guest's invitation, re-themed as soon as a style is chosen. */
+function LiveCard({ draft }: { draft: WeddingDraft }) {
+  const t = themeFor(draft.style);
+  const vars = { '--i-bg': t.bg, '--i-panel': t.panel, '--i-ink': t.ink, '--i-accent': t.accent, '--i-soft': t.soft, '--i-art': ornamentUrl(draft.style) } as CSSProperties;
+  const dates = [...new Set(draft.events.map((e) => e.date).filter(Boolean))].sort();
+  const range = dates.length > 1 ? `${fmtDate(dates[0])} – ${fmtDate(dates.at(-1)!)}` : dates[0] ? fmtDate(dates[0]) : '';
+  return (
+    <div className={`livecard ${draft.style ? 'styled' : ''}`} style={vars}>
+      <div className="lc-panel">
+        {draft.invite_line && <p className="lc-line">{draft.invite_line}</p>}
+        <p className="lc-names">
+          <span>{draft.partner1_name || '·····'}</span> <i>&amp;</i> <span>{draft.partner2_name || '·····'}</span>
+        </p>
+        {(draft.partner1_family || draft.partner2_family) && <p className="lc-fam">{[draft.partner1_family, draft.partner2_family].filter(Boolean).join(' · ')}</p>}
+        <p className="lc-date">{[range, draft.city].filter(Boolean).join(' · ') || 'Dates and city appear here'}</p>
+      </div>
+      <ol className="lc-events">
+        {draft.events.map((e, i) => (
+          <li key={e.name + i} style={{ animationDelay: `${i * 70}ms` }}>
+            <b>{e.name}</b>
+            <span>{[fmtDate(e.date), e.start_time].filter(Boolean).join(' · ') || 'date to confirm'}</span>
+            <span className="lc-venue">{e.venue_name || 'venue to confirm'}</span>
+          </li>
+        ))}
+        {!draft.events.length && <li className="lc-empty">Ceremonies appear here as Saathi learns them.</li>}
+      </ol>
+    </div>
+  );
+}
+
