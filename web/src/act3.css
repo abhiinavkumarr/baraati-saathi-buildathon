@@ -1,37 +1,114 @@
-/* ───────── Saathi concierge ───────── */
-.saathi-fab { position: fixed; left: 16px; bottom: 16px; z-index: 12; display: flex; align-items: center; gap: 10px; border: 0;
-  padding: 14px 20px; border-radius: 100px; background: var(--i-ink, #1f1226); color: #fff; font-weight: 700;
-  box-shadow: 0 14px 34px rgba(0,0,0,.3); }
-.saathi-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--i-accent, #c9a84c); animation: pulse 1.6s infinite; }
-.saathi-panel { position: fixed; z-index: 30; left: 12px; right: 12px; bottom: 12px; max-width: 420px; height: min(620px, calc(100svh - 24px));
-  display: flex; flex-direction: column; background: #fff; color: #1f1226; border-radius: 24px; box-shadow: 0 30px 80px rgba(0,0,0,.4);
-  overflow: hidden; animation: rise .35s cubic-bezier(.2,.7,.1,1) both; font-family: 'Plus Jakarta Sans', sans-serif; }
-.saathi-panel header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; background: var(--i-ink, #1f1226); color: #fff; }
-.saathi-panel header div { display: flex; flex-direction: column; }
-.saathi-panel header span { font-size: 12px; opacity: .75; }
-.saathi-panel .x { border: 0; background: transparent; color: #fff; font-size: 26px; line-height: 1; }
-.saathi-msgs { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px; background: #fbf7f1; }
-.s-bubble { max-width: 85%; padding: 10px 14px; border-radius: 16px; line-height: 1.45; font-size: 15px; white-space: pre-wrap; }
-.s-bubble.saathi { align-self: flex-start; background: #fff; border: 1px solid #ece3d6; border-bottom-left-radius: 5px; }
-.s-bubble.guest { align-self: flex-end; background: var(--i-ink, #1f1226); color: #fff; border-bottom-right-radius: 5px; }
-.s-bubble.live { opacity: .7; }
-.s-note { display: block; margin-top: 6px; font-size: 12px; font-weight: 600; color: #1e7a4f; }
-.s-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 0; background: #fbf7f1; }
-.s-chips button { border: 1px solid #e6dccf; background: #fff; border-radius: 100px; padding: 7px 12px; font-size: 13px; }
-.s-err { margin: 0; padding: 6px 14px; font-size: 13px; color: #c8325a; background: #fbf7f1; }
-.s-composer { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #ece3d6; }
-.s-composer input { flex: 1; min-width: 0; border: 1.5px solid #e6dccf; border-radius: 100px; padding: 10px 14px; font: inherit; }
-.s-mic { width: 46px; border: 0; border-radius: 50%; background: #f4ece3; font-size: 18px; }
-.s-mic.connecting { animation: pulse 1s infinite; }
-.s-mic.listening { background: #c8325a; color: #fff; box-shadow: 0 0 0 0 rgba(200,50,90,.5); animation: ring 1.4s infinite; }
-.s-mic.speaking { background: var(--i-accent, #c9a84c); color: #fff; }
-@keyframes ring { 70% { box-shadow: 0 0 0 14px rgba(200,50,90,0); } 100% { box-shadow: 0 0 0 0 rgba(200,50,90,0); } }
-.s-send { border: 0; border-radius: 100px; padding: 0 16px; font-weight: 700; background: var(--i-ink, #1f1226); color: #fff; }
-.s-send:disabled { opacity: .45; }
+/* ───────── Saathi concierge widget ───────── */
+.saathi-fab {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 12;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  padding: 6px 18px 6px 6px;
+  border-radius: var(--r-pill);
+  background: var(--card);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 15px;
+  box-shadow: var(--shadow-float);
+  transition: transform var(--t-fast) var(--ease);
+}
+.saathi-fab:hover { transform: translateY(-2px); }
+.saathi-orb {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-pill);
+  background: var(--grad-saffron);
+  color: var(--on-ink);
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  flex: none;
+}
 
-/* Host: answer questions inline */
-.q-list li { display: flex; flex-direction: column; gap: 8px; }
-.q-answer { display: flex; gap: 6px; }
-.q-answer input { flex: 1; min-width: 0; border: 1.5px solid var(--line); border-radius: 100px; padding: 8px 12px; font: inherit; font-size: 14px; }
-.q-answer button { border: 0; border-radius: 100px; padding: 0 14px; background: var(--ink); color: #fff; font-weight: 600; font-size: 13px; }
-.q-done { font-size: 13px; color: var(--muted); }
+.saathi-panel {
+  position: fixed;
+  z-index: 30;
+  left: 16px;
+  bottom: 16px;
+  width: min(410px, calc(100vw - 32px));
+  height: min(620px, calc(100svh - 32px));
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-float);
+  overflow: hidden;
+  animation: rise .3s var(--ease) both;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.saathi-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--card);
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+}
+.saathi-head-left { display: flex; align-items: center; gap: 10px; }
+.saathi-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-pill);
+  background: var(--grad-saffron);
+  color: var(--on-ink);
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  flex: none;
+}
+.saathi-head-title { display: flex; flex-direction: column; gap: 2px; }
+.saathi-head-row { display: flex; align-items: center; gap: 8px; }
+.saathi-head-title > span { font-size: 12px; color: var(--muted); }
+
+.saathi-msgs {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--bg);
+}
+.s-bubble { max-width: 85%; padding: 12px 15px; border-radius: 20px; line-height: 1.5; font-size: 15px; white-space: pre-wrap; }
+.s-bubble.saathi { align-self: flex-start; background: var(--bg-2); color: var(--ink); border-bottom-left-radius: 6px; }
+.s-bubble.guest { align-self: flex-end; background: var(--ink); color: var(--on-ink); border-bottom-right-radius: 6px; }
+.s-bubble.live { opacity: .75; }
+.s-note { display: block; margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--ok); }
+.s-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 14px 4px; background: var(--bg); }
+.s-err { margin: 0; padding: 6px 14px; font-size: 13px; color: var(--bad); background: var(--bg); }
+.s-composer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  border-top: 1px solid var(--line);
+  background: var(--card);
+}
+.s-composer input { flex: 1; min-width: 0; min-height: 44px; padding: 10px 16px; }
+.s-mic.listening { background: var(--rose-ink); color: var(--on-ink); box-shadow: 0 0 0 6px rgba(255,77,109,.25); }
+.s-mic.speaking { background: var(--ink); color: var(--on-ink); }
+
+@media (max-width: 600px) {
+  .saathi-panel {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: min(85svh, 640px);
+    border-radius: 28px 28px 0 0;
+  }
+}

@@ -116,7 +116,7 @@ export function Saathi({ slug, coupleNames }: { slug: string; coupleNames: strin
   if (!open) {
     return (
       <button ref={fabRef} className="saathi-fab" aria-haspopup="dialog" onClick={() => setOpen(true)}>
-        <span className="saathi-dot" aria-hidden /> Ask Saathi
+        <span className="saathi-orb" aria-hidden>✦</span> Ask Saathi
       </button>
     );
   }
@@ -124,11 +124,17 @@ export function Saathi({ slug, coupleNames }: { slug: string; coupleNames: strin
   return (
     <div className="saathi-panel" role="dialog" aria-label="Ask Saathi" onKeyDown={(e) => e.key === 'Escape' && close()}>
       <header>
-        <div>
-          <b>Saathi</b>
-          <span aria-live="polite">{voice === 'off' ? 'Wedding helper · Hindi & English' : voice === 'connecting' ? 'Connecting…' : voice === 'speaking' ? 'Speaking…' : voice === 'listening' ? 'Listening — just speak' : 'Voice error'}</span>
+        <div className="saathi-head-left">
+          <span className="saathi-avatar" aria-hidden>✦</span>
+          <div className="saathi-head-title">
+            <div className="saathi-head-row">
+              <b>Saathi</b>
+              <span className="badge ai">Hindi · English</span>
+            </div>
+            <span aria-live="polite">{voice === 'off' ? 'Wedding helper · Hindi & English' : voice === 'connecting' ? 'Connecting…' : voice === 'speaking' ? 'Speaking…' : voice === 'listening' ? 'Listening — just speak' : 'Voice error'}</span>
+          </div>
         </div>
-        <button className="x" aria-label="Close Saathi" onClick={close}>×</button>
+        <button className="icon-btn" aria-label="Close Saathi" onClick={close}>×</button>
       </header>
 
       {/* A live log: every reply, typed or spoken, also appears as text (captions for voice). */}
@@ -145,17 +151,17 @@ export function Saathi({ slug, coupleNames }: { slug: string; coupleNames: strin
 
       {msgs.length <= 1 && (
         <div className="s-chips">
-          {SUGGESTIONS.map((s) => <button key={s} onClick={() => void ask(s)}>{s}</button>)}
+          {SUGGESTIONS.map((s) => <button className="chip" key={s} onClick={() => void ask(s)}>{s}</button>)}
         </div>
       )}
       {voiceErr && <p className="s-err" role="alert">{voiceErr}</p>}
 
       <form className="s-composer" onSubmit={(e) => { e.preventDefault(); void ask(text); }}>
-        <button type="button" className={`s-mic ${voice}`} onClick={() => void toggleVoice()} aria-label={voice === 'off' || voice === 'error' ? 'Talk to Saathi by voice' : 'Stop voice'} aria-pressed={voice !== 'off' && voice !== 'error'}>
+        <button type="button" className={`icon-btn s-mic ${voice}`} onClick={() => void toggleVoice()} aria-label={voice === 'off' || voice === 'error' ? 'Talk to Saathi by voice' : 'Stop voice'} aria-pressed={voice !== 'off' && voice !== 'error'}>
           {voice === 'off' || voice === 'error' ? '🎙️' : '■'}
         </button>
         <input ref={inputRef} aria-label="Your question for Saathi" value={text} onChange={(e) => setText(e.target.value)} placeholder="Type your question…" disabled={busy} />
-        <button className="s-send" disabled={busy || !text.trim()}>Ask</button>
+        <button className="btn btn-primary btn-sm" disabled={busy || !text.trim()}>Ask</button>
       </form>
     </div>
   );

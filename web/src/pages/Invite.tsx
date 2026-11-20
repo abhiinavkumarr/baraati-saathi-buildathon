@@ -161,13 +161,13 @@ export function Invite({ slug }: { slug: string }) {
                     {e.dress_code && <p className="dress">Dress code: {e.dress_code}</p>}
                     <div className="event-links">
                       {e.venue_address && (
-                        <a className="map" target="_blank" rel="noreferrer" aria-label={`Directions to ${e.venue_name || e.name} (opens Google Maps)`}
+                        <a className="btn btn-outline btn-sm" target="_blank" rel="noreferrer" aria-label={`Directions to ${e.venue_name || e.name} (opens Google Maps)`}
                           href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${e.venue_name} ${e.venue_address}`)}`}>
                           Directions
                         </a>
                       )}
                       {e.date && (
-                        <a className="map" href={icsUrl(e, `${d.partner1_name} & ${d.partner2_name}`)} download={`${e.name}.ics`} aria-label={`Add the ${e.name} to your calendar`}>
+                        <a className="btn btn-outline btn-sm" href={icsUrl(e, `${d.partner1_name} & ${d.partner2_name}`)} download={`${e.name}.ics`} aria-label={`Add the ${e.name} to your calendar`}>
                           Add to calendar
                         </a>
                       )}
@@ -317,8 +317,8 @@ function Rsvp({ slug, disabled, guestName = '' }: { slug: string; disabled: bool
           ) : null}
           <p className="my-plan-hint">Ask Saathi below anytime about ceremonies, dress codes, or your pickup.</p>
           <div className="after-rsvp">
-            <button className="pill" onClick={() => setDone(false)}>Update RSVP / ticket</button>
-            <a className="pill solid" href="https://baraati.co.in" target="_blank" rel="noreferrer">Get the Baraati app</a>
+            <button className="btn btn-outline btn-sm" onClick={() => setDone(false)}>Update RSVP / ticket</button>
+            <a className="btn btn-primary btn-sm" href="https://baraati.co.in" target="_blank" rel="noreferrer">Get the Baraati app</a>
           </div>
         </div>
       </section>
@@ -361,7 +361,7 @@ function Rsvp({ slug, disabled, guestName = '' }: { slug: string; disabled: bool
               </div>
             )}
             {error && <p className="error" role="alert">{error}</p>}
-            <button className="rsvp-send" disabled={busy || disabled}>
+            <button className="btn btn-cta rsvp-send" disabled={busy || disabled}>
               {disabled ? 'RSVP (preview)' : busy ? 'Sending…' : 'Send RSVP'}
             </button>
           </div>
@@ -396,11 +396,11 @@ function Update({ a }: { a: { text_en: string; text_hi: string | null; created_a
   const when = new Date(a.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
   return (
     <section className="update reveal" aria-labelledby="update-h">
-      <div className="update-card">
+      <div className="update-card glass">
         <div className="update-top">
           <span id="update-h"><span aria-hidden>📣 </span>Update from the family</span>
           {a.text_hi && (
-            <button onClick={() => setHi(!hi)} aria-label={hi ? 'Show in English' : 'हिंदी में देखें'}>{hi ? 'EN' : 'हिं'}</button>
+            <button className="chip" onClick={() => setHi(!hi)} aria-label={hi ? 'Show in English' : 'हिंदी में देखें'}>{hi ? 'EN' : 'हिं'}</button>
           )}
         </div>
         <p lang={hi ? 'hi' : undefined}>{hi && a.text_hi ? a.text_hi : a.text_en}</p>
