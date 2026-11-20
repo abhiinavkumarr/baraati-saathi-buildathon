@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { post } from './api.ts';
 import { storage } from './format.ts';
+import { Rich } from './rich.tsx';
 // The Live SDK is large; load it only when the guest taps the mic.
 const startLive = async (...a: Parameters<typeof import('./live.ts').startLive>) => (await import('./live.ts')).startLive(...a);
 
@@ -134,7 +135,7 @@ export function Saathi({ slug, coupleNames }: { slug: string; coupleNames: strin
       <div className="saathi-msgs" role="log" aria-live="polite" aria-label="Conversation with Saathi">
         {msgs.map((m, i) => (
           <div key={i} className={`s-bubble ${m.role} ${m.live ? 'live' : ''}`}>
-            {m.text}
+            {m.role === 'saathi' && !m.live ? <Rich text={m.text} /> : m.text}
             {m.note && <span className="s-note">✓ {m.note}</span>}
           </div>
         ))}

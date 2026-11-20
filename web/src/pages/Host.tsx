@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { fileToAttachment, post, type Attachment, type WeddingDraft } from '../api.ts';
 import { fmtDate, fmtTime } from '../format.ts';
+import { Rich } from '../rich.tsx';
 import '../control.css';
 
 interface Rsvp {
@@ -302,14 +303,14 @@ function ControlRoom({ slug, token, push, onPushed, onChange }: {
         )}
         {msgs.map((m, i) => (
           <div key={i} className={`rm ${m.role}`}>
-            <div className="rm-bubble">{m.voice && <span className="rm-voice" aria-label="Spoken">🎙️ </span>}{m.text}</div>
+            <div className="rm-bubble">{m.voice && <span className="rm-voice" aria-label="Spoken">🎙️ </span>}{m.role === 'saathi' ? <Rich text={m.text} /> : m.text}</div>
             {m.data && <DataCard d={m.data} />}
             {m.proposals?.map((p) => <ProposalCard key={p.id} p={p} slug={slug} token={token} onApplied={onChange} />)}
           </div>
         ))}
         {busy && (
           <div className="rm saathi">
-            <div className="rm-bubble working"><span className="dots" aria-hidden><i /><i /><i /></span> Saathi is checking your guest list…</div>
+            <div className="rm-bubble working"><span className="dots" aria-hidden><i /><i /><i /></span> <Progress /></div>
           </div>
         )}
         <div ref={endRef} />
@@ -341,6 +342,18 @@ function ControlRoom({ slug, token, push, onPushed, onChange }: {
       </form>
     </section>
   );
+}
+
+/** What Saathi is doing, while the agent works (Gemini calls take a few seconds each). */
+function Progress() {
+  const steps = ['Understanding your request…', 'Checking your guest list in AlloyDB…', 'Drafting changes for you to approve…', 'Writing it in English and Hindi…'];
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI((x) => Math.min(x + 1, steps.length - 1)), 3200);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return <span>{steps[i]}</span>;
 }
 
 function DataCard({ d }: { d: QueryData }) {

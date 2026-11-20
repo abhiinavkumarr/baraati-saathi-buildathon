@@ -45,6 +45,7 @@ const { slug, host_token } = await call('POST', '/api/weddings', { draft });
 await Promise.all([
   call('POST', `/api/weddings/${slug}/art`, { host_token, kind: 'card_art' }),
   call('POST', `/api/weddings/${slug}/music`, { host_token }),
+  call('POST', `/api/weddings/${slug}/event-art`, { host_token }),
 ]);
 // A realistic guest list: arrivals over three days, airport and station
 // pickups, food needs, children, a few maybes and regrets. No phone numbers,

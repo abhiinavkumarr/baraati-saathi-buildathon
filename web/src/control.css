@@ -154,3 +154,11 @@
   .room { min-height: 520px; }
   .rm { max-width: 100%; }
 }
+
+/* Light markdown in replies */
+.rich-p { margin: 0; }
+.rich-p + .rich-p, .rich-p + .rich-list, .rich-list + .rich-p { margin-top: 8px; }
+.rich-list { margin: 6px 0 0; padding-left: 20px; }
+.rich-list li + li { margin-top: 3px; }
+.rm-bubble { white-space: normal; }
+.s-bubble .rich-p { white-space: normal; }

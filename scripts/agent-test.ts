@@ -16,6 +16,7 @@ console.log(`BRIEFING (${b.secs}s)`, JSON.stringify(b.briefing, null, 1), '\nsta
 
 for (const message of [
   'Haldi ko 11 baje se 12 baje kar do aur sabko bata do',
+  'Dog wale sawaal ka jawab do: pets allowed nahi hain, sorry',
   'Who is landing at the airport and needs a pickup?',
   'Tell everyone who needs a pickup that the shuttle leaves from Arrivals Gate 2',
 ]) {
