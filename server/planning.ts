@@ -911,15 +911,26 @@ export function stripPhones(raw: string): string {
   return raw.replace(/(?:\+?\d[\d\s\-().]{7,18}\d)/g, '[phone]');
 }
 
+/** A recorded voice note from the browser (MediaRecorder), validated. */
+function voiceNote(raw: unknown): Attachment | undefined {
+  if (!raw) return undefined;
+  const a = raw as Attachment;
+  if (typeof a.data !== 'string' || !/^audio\//.test(a.mime_type ?? '') || !ALLOWED_MIME.test(a.mime_type) || a.data.length > 11_000_000) {
+    throw new HttpError(400, 'That voice note could not be read. Please record it again.');
+  }
+  return { mime_type: a.mime_type, data: a.data };
+}
+
 planningRouter.post('/host/:slug/guests/import-preview', async (req, res) => {
   await hostWeddingRow(req.params.slug, req.body?.t);
   const rawText = typeof req.body?.text === 'string' ? req.body.text.slice(0, 30_000) : '';
   const safeText = stripPhones(rawText);
   const image = req.body?.image as Attachment | undefined;
-  if (image && (typeof image.data !== 'string' || !ALLOWED_MIME.test(image.mime_type ?? '') || image.data.length > 15_000_000)) {
+  if (image && (typeof image.data !== 'string' || !/^(image\/|application\/pdf$)/.test(image.mime_type ?? '') || !ALLOWED_MIME.test(image.mime_type) || image.data.length > 15_000_000)) {
     throw new HttpError(400, 'Please upload a valid image (JPG/PNG/WebP) or PDF.');
   }
-  if (!safeText.trim() && !image) throw new HttpError(400, 'Paste a guest list or upload a photo.');
+  const audio = voiceNote(req.body?.audio);
+  if (!safeText.trim() && !image && !audio) throw new HttpError(400, 'Paste a guest list, upload a photo or record the names.');
 
   const parts: unknown[] = [
     {
@@ -928,10 +939,15 @@ planningRouter.post('/host/:slug/guests/import-preview', async (req, res) => {
         'Extract the guest list below into structured rows. Deduplicate identical names. ' +
         'Keep household entries like "Sharma family (4)" as ONE row with party_size = 4. ' +
         'side must be "bride", "groom", "both", or empty string. Never include phone numbers.\n\n' +
-        (safeText.trim() ? safeText : '(See attached image of the guest list)'),
+        (safeText.trim()
+          ? safeText
+          : audio
+            ? '(The host is reading the guest names aloud in the attached voice note, in Hindi, English or Hinglish. Write names in Roman script.)'
+            : '(See attached image of the guest list)'),
     },
   ];
   if (image) parts.push(toInputPart(image));
+  if (audio) parts.push(toInputPart(audio));
 
   const out = await generateJson<{
     guests: { name: string; party_size: number; side: string; group_name: string; relation: string }[];
@@ -983,24 +999,70 @@ planningRouter.post('/host/:slug/guests/import-preview', async (req, res) => {
 
 planningRouter.post('/host/:slug/guests/bulk', async (req, res) => {
   const w = await hostWeddingRow(req.params.slug, req.body?.t);
-  const items = Array.isArray(req.body?.guests) ? req.body.guests.slice(0, 200) : [];
+  const items = Array.isArray(req.body?.guests) ? req.body.guests.slice(0, 1000) : [];
   if (!items.length) throw new HttpError(400, 'No guests to import.');
   const db = await getDb();
+  // Skip names already on the list, so importing the same sheet twice is safe.
+  const existing = await db.query<{ name: string }>('SELECT name FROM rsvps WHERE wedding_id = $1', [w.id]);
+  const seen = new Set(existing.map((r) => r.name.trim().toLowerCase()));
   let added = 0;
+  let skipped = 0;
   for (const raw of items) {
     const g = (raw ?? {}) as Record<string, unknown>;
     const name = str(g.name, 80);
     if (!name) continue;
+    if (seen.has(name.toLowerCase())) {
+      skipped++;
+      continue;
+    }
+    seen.add(name.toLowerCase());
     const party = Math.min(20, Math.max(1, Number.parseInt(String(g.party_size ?? 1), 10) || 1));
     const side = typeof g.side === 'string' && GUEST_SIDES.has(g.side) ? g.side : null;
+    const status = typeof g.status === 'string' && GUEST_STATUSES.has(g.status) ? g.status : 'pending';
+    // Phones come only from the host's own file and are never sent to a model.
+    const digits = str(g.phone, 20).replace(/[^\d+]/g, '');
+    const phone = digits.replace(/\D/g, '').length >= 10 ? digits : null;
     await db.query(
-      `INSERT INTO rsvps (wedding_id, guest_token, name, phone, status, party_size, side, group_name, relation, source)
-       VALUES ($1, $2, $3, NULL, 'pending', $4, $5, $6, $7, 'import')`,
-      [w.id, makeToken(), name, party, side, str(g.group_name, 80) || null, str(g.relation, 80) || null],
+      `INSERT INTO rsvps (wedding_id, guest_token, name, phone, status, party_size, side, group_name, relation, room, note, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'import')`,
+      [w.id, makeToken(), name, phone, status, party, side, str(g.group_name, 80) || null, str(g.relation, 80) || null,
+        str(g.room, 60) || null, str(g.note, 600) || null],
     );
     added++;
   }
-  res.status(201).json({ ok: true, added });
+  res.status(201).json({ ok: true, added, skipped });
+});
+
+/**
+ * Fetch a Google Sheet the host shared as "anyone with the link" and return it
+ * as CSV for the browser to map. Only docs.google.com sheet ids are accepted,
+ * so this can't be used to fetch arbitrary URLs.
+ */
+export function sheetExportUrl(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const m = raw.trim().match(/^https:\/\/docs\.google\.com\/spreadsheets\/d\/([A-Za-z0-9_-]{20,100})(?:[/?#].*)?$/);
+  if (!m) return null;
+  const gid = raw.match(/[#?&]gid=(\d{1,12})/)?.[1];
+  return `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv${gid ? `&gid=${gid}` : ''}`;
+}
+
+planningRouter.post('/host/:slug/guests/sheet-link', async (req, res) => {
+  await hostWeddingRow(req.params.slug, req.body?.t);
+  const url = sheetExportUrl(req.body?.url);
+  if (!url) throw new HttpError(400, 'Paste a Google Sheets link (it starts with https://docs.google.com/spreadsheets/d/…).');
+  let r: Response;
+  try {
+    r = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(15_000) });
+  } catch {
+    throw new HttpError(502, 'Could not reach Google Sheets. Please try again.');
+  }
+  const type = r.headers.get('content-type') ?? '';
+  if (!r.ok || !/text\/csv|text\/plain|application\/octet-stream/.test(type)) {
+    throw new HttpError(400, 'That sheet is private. In Google Sheets, click Share → General access → "Anyone with the link", then try again. Or download it as .xlsx and upload the file.');
+  }
+  const csv = await r.text();
+  if (csv.length > 2_000_000) throw new HttpError(400, 'That sheet is too large to import (max 2 MB).');
+  res.json({ csv });
 });
 
 // ── P1: AI Quote Reader (§5.2) ───────────────────────────────────────────────
@@ -1125,6 +1187,65 @@ planningRouter.post('/host/:slug/tasks/suggest', async (req, res) => {
   res.json({ tasks });
 });
 
+// Voice → tasks: the host speaks one or more to-dos ("Book the DJ by 10 Jan,
+// and ask Riya to finalise the menu"); Gemini hears the audio and returns
+// dated tasks for the host to review before anything is saved.
+planningRouter.post('/host/:slug/tasks/from-voice', async (req, res) => {
+  const w = await hostWeddingRow(req.params.slug, req.body?.t);
+  const audio = voiceNote(req.body?.audio);
+  if (!audio) throw new HttpError(400, 'Record a voice note first.');
+  const today = new Date().toISOString().slice(0, 10);
+  const d = w.draft;
+  const out = await generateJson<{
+    heard: string;
+    tasks: { title: string; due_date: string; assignee: string; ceremony: string; priority: string }[];
+  }>({
+    system:
+      'You turn a wedding host\'s spoken to-do list (Hindi, English or Hinglish) into tasks. ' +
+      '"heard" is an exact transcript in Roman script. Make one task per to-do with a short imperative English title. ' +
+      `Resolve dates like "next Friday" or "10 Jan" against today (${today}) as YYYY-MM-DD, else empty string. ` +
+      'assignee is the person who should do it if named, else empty. ceremony only if one is mentioned. ' +
+      'priority is "critical" if urgent, "high" if important, else "normal". Never invent tasks that were not said.',
+    input: [
+      { type: 'text', text: `Ceremonies: ${d.events.map((e) => `${e.name} (${e.date})`).join(', ')}. The voice note is attached.` },
+      toInputPart(audio),
+    ],
+    schema: {
+      type: 'object',
+      properties: {
+        heard: { type: 'string' },
+        tasks: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string' },
+              due_date: { type: 'string' },
+              assignee: { type: 'string' },
+              ceremony: { type: 'string' },
+              priority: { type: 'string', enum: ['normal', 'high', 'critical'] },
+            },
+            required: ['title', 'due_date', 'assignee', 'ceremony', 'priority'],
+          },
+        },
+      },
+      required: ['heard', 'tasks'],
+    },
+  });
+  const tasks = (Array.isArray(out.tasks) ? out.tasks : [])
+    .slice(0, 15)
+    .map((t) => ({
+      title: str(t.title, 200),
+      due_date: DATE_RE.test(str(t.due_date, 10)) ? str(t.due_date, 10) : null,
+      assignee: str(t.assignee, 80),
+      category: '',
+      ceremony: str(t.ceremony, 60),
+      priority: TASK_PRIORITIES.has(t.priority) ? t.priority : 'normal',
+    }))
+    .filter((t) => t.title);
+  res.json({ heard: str(out.heard, 1000), tasks });
+});
+
 // ── P1: Sheets (§5.5) ────────────────────────────────────────────────────────
 
 interface SheetCol {
@@ -1233,7 +1354,8 @@ planningRouter.delete('/host/:slug/sheets/:id', async (req, res) => {
 planningRouter.post('/host/:slug/sheets/suggest', async (req, res) => {
   const w = await hostWeddingRow(req.params.slug, req.body?.t);
   const prompt = str(req.body?.prompt, 300);
-  if (!prompt) throw new HttpError(400, 'Tell Saathi what sheet to create.');
+  const audio = voiceNote(req.body?.audio);
+  if (!prompt && !audio) throw new HttpError(400, 'Tell Saathi what sheet to create.');
 
   const out = await generateJson<{
     name: string;
@@ -1243,7 +1365,15 @@ planningRouter.post('/host/:slug/sheets/suggest', async (req, res) => {
     system:
       'Create a practical Indian wedding planning spreadsheet for the host\'s request. ' +
       'Use 4 to 6 columns (ids c1, c2, ...) with types text, number, date or check, and 6 to 12 realistic starter rows.',
-    input: [{ type: 'text', text: `Wedding of ${w.draft.partner1_name} & ${w.draft.partner2_name} in ${w.draft.city}. Request: ${prompt}` }],
+    input: [
+      {
+        type: 'text',
+        text:
+          `Wedding of ${w.draft.partner1_name} & ${w.draft.partner2_name} in ${w.draft.city}. ` +
+          (prompt ? `Request: ${prompt}` : 'The request is in the attached voice note (Hindi, English or Hinglish); follow what was said, including any items or rows it lists.'),
+      },
+      ...(audio ? [toInputPart(audio)] : []),
+    ],
     schema: {
       type: 'object',
       properties: {
@@ -1293,7 +1423,7 @@ planningRouter.post('/host/:slug/sheets/suggest', async (req, res) => {
   const db = await getDb();
   const [created] = await db.query<{ id: string; name: string; columns: SheetCol[]; rows: SheetRow[]; updated_at: string }>(
     'INSERT INTO sheets (wedding_id, name, columns, rows) VALUES ($1, $2, $3, $4) RETURNING id, name, columns, rows, updated_at',
-    [w.id, str(out.name, 100) || prompt.slice(0, 60), JSON.stringify(columns), JSON.stringify(rows)],
+    [w.id, str(out.name, 100) || prompt.slice(0, 60) || 'New sheet', JSON.stringify(columns), JSON.stringify(rows)],
   );
   res.status(201).json({ sheet: created });
 });

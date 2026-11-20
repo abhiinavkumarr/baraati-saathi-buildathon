@@ -132,6 +132,17 @@ designRouter.post('/weddings/:slug/event-art', async (req, res) => {
   res.json({ made });
 });
 
+// Add or replace the couple photo shown on the invitation (no AI involved).
+designRouter.post('/weddings/:slug/couple-photo', async (req, res) => {
+  const w = await hostWedding(req.params.slug, req.body?.host_token);
+  const photo = req.body?.photo as Attachment | undefined;
+  if (!photo || typeof photo.data !== 'string' || !/^image\/(png|jpeg|webp)$/.test(photo.mime_type ?? '') || photo.data.length > 15_000_000) {
+    throw new HttpError(400, 'Please choose a JPG, PNG or WebP photo under 10 MB.');
+  }
+  const id = await saveAsset(w.id, 'upload', photo.mime_type, photo.data, 'couple photo (host upload)', 'couple_photo');
+  res.status(201).json({ id });
+});
+
 designRouter.post('/weddings/:slug/art', async (req, res) => {
   const w = await hostWedding(req.params.slug, req.body?.host_token);
   const kind = req.body?.kind === 'couple_art' ? 'couple_art' : 'card_art';
@@ -145,10 +156,23 @@ designRouter.post('/weddings/:slug/art', async (req, res) => {
     return;
   }
 
-  const photo = req.body?.photo as Attachment | undefined;
-  if (!photo || typeof photo.data !== 'string' || !/^image\//.test(photo.mime_type ?? '') || !ALLOWED_MIME.test(photo.mime_type)) {
-    throw new HttpError(400, 'Please upload a photo of the couple (JPG or PNG).');
+  let photo = req.body?.photo as Attachment | undefined;
+  if (photo) {
+    if (typeof photo.data !== 'string' || !/^image\/(png|jpeg|webp)$/.test(photo.mime_type ?? '') || photo.data.length > 15_000_000) {
+      throw new HttpError(400, 'Please upload a photo of the couple (JPG or PNG).');
+    }
+    // A photo added here is also the couple photo on the invitation.
+    await saveAsset(w.id, 'upload', photo.mime_type, photo.data, 'couple photo (host upload)', 'couple_photo');
+  } else if (req.body?.use_saved_photo === true) {
+    const db = await getDb();
+    const saved = await db.query<{ mime_type: string; data: Buffer | Uint8Array }>(
+      `SELECT mime_type, data FROM assets WHERE wedding_id = $1 AND kind = 'upload' AND label = 'couple_photo'
+        ORDER BY created_at DESC LIMIT 1`,
+      [w.id],
+    );
+    if (saved[0]) photo = { mime_type: saved[0].mime_type, data: Buffer.from(saved[0].data).toString('base64') };
   }
+  if (!photo) throw new HttpError(400, 'Please upload a photo of the couple (JPG or PNG).');
   const brief =
     `Redraw this couple as a ${w.draft.style || 'royal-rajasthani'} style wedding illustration ` +
     `(for royal-rajasthani: a Mughal-Rajput miniature painting). Keep their faces recognisable and respectful, ` +
@@ -339,13 +363,15 @@ export async function latestAssets(weddingId: string) {
   const db = await getDb();
   const rows = await db.query<{ id: string; kind: string; label: string | null }>(
     `SELECT DISTINCT ON (kind, coalesce(label, '')) id, kind, label FROM assets
-      WHERE wedding_id = $1 AND kind IN ('card_art', 'couple_art', 'music', 'event_art')
+      WHERE wedding_id = $1
+        AND (kind IN ('card_art', 'couple_art', 'music', 'event_art') OR (kind = 'upload' AND label = 'couple_photo'))
       ORDER BY kind, coalesce(label, ''), created_at DESC`,
     [weddingId],
   );
-  const out: Partial<Record<'card_art' | 'couple_art' | 'music', string>> & { events?: Record<string, string> } = {};
+  const out: Partial<Record<'card_art' | 'couple_art' | 'music' | 'couple_photo', string>> & { events?: Record<string, string> } = {};
   for (const r of rows) {
     if (r.kind === 'event_art') (out.events ??= {})[r.label ?? ''] = r.id;
+    else if (r.kind === 'upload') out.couple_photo = r.id;
     else out[r.kind as 'card_art' | 'couple_art' | 'music'] = r.id;
   }
   return out;

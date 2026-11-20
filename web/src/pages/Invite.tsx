@@ -7,7 +7,7 @@ import { Saathi } from '../Saathi.tsx';
 export interface PublicWedding {
   slug: string;
   draft: WeddingDraft;
-  assets: { card_art?: string; couple_art?: string; music?: string; events?: Record<string, string> };
+  assets: { card_art?: string; couple_art?: string; couple_photo?: string; music?: string; events?: Record<string, string> };
   announcements?: { text_en: string; text_hi: string | null; created_at: string }[];
   day_schedule?: { date: string; start_time: string; end_time: string; title: string; place: string }[];
 }
@@ -140,12 +140,20 @@ export function Invite({ slug }: { slug: string }) {
         <section className="hero">
         <div className="hero-art" />
         <div className="hero-panel reveal in">
-          {d.logo_asset_id && (
-            <img
-              src={`/api/assets/${d.logo_asset_id}`}
-              alt={`${d.partner1_name} and ${d.partner2_name} monogram`}
-              style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', margin: '0 auto 12px', display: 'block', border: '1.5px solid var(--i-accent)' }}
-            />
+          {w.assets.couple_photo ? (
+            // The couple's own photo from Create; the monogram sits on it as a seal.
+            <div className="hero-couple">
+              <img className="hero-couple-photo" src={`/api/assets/${w.assets.couple_photo}`} alt={`${d.partner1_name} and ${d.partner2_name}`} />
+              {d.logo_asset_id && <img className="hero-couple-seal" src={`/api/assets/${d.logo_asset_id}`} alt="" />}
+            </div>
+          ) : (
+            d.logo_asset_id && (
+              <img
+                src={`/api/assets/${d.logo_asset_id}`}
+                alt={`${d.partner1_name} and ${d.partner2_name} monogram`}
+                style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', margin: '0 auto 12px', display: 'block', border: '1.5px solid var(--i-accent)' }}
+              />
+            )
           )}
           {guestName && <p className="dear">Dear {guestName},</p>}
           {d.invite_line && <p className="invite-line">{d.invite_line}</p>}

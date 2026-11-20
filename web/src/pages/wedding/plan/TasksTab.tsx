@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { del, patch, post } from '../../../api.ts';
+import { del, patch, post, type Attachment } from '../../../api.ts';
 import { useWedding } from '../../../WeddingContext.tsx';
 import { fmtDate } from '../../../format.ts';
+import { MicButton } from '../../../components/MicButton.tsx';
 
 interface TaskItem {
   id: string;
@@ -63,8 +64,29 @@ export function TasksTab({ slug }: { slug: string }) {
 
   // AI "Make my checklist" (§5.4)
   const [aiBusy, setAiBusy] = useState(false);
-  const [suggested, setSuggested] = useState<{ title: string; due_date: string | null; category: string; ceremony: string; priority: 'normal' | 'high' | 'critical'; checked: boolean }[]>([]);
+  const [suggested, setSuggested] = useState<{ title: string; due_date: string | null; category: string; ceremony: string; assignee?: string; priority: 'normal' | 'high' | 'critical'; checked: boolean }[]>([]);
   const [applyingAi, setApplyingAi] = useState(false);
+  // Where the suggestions came from: the AI checklist or a voice note.
+  const [heard, setHeard] = useState<string | null>(null);
+  const [voiceBusy, setVoiceBusy] = useState(false);
+
+  async function tasksFromVoice(audio: Attachment) {
+    setVoiceBusy(true);
+    setError('');
+    try {
+      const r = await post<{ heard: string; tasks: { title: string; due_date: string | null; category: string; ceremony: string; assignee: string; priority: 'normal' | 'high' | 'critical' }[] }>(
+        `/api/host/${slug}/tasks/from-voice`,
+        { t: token, audio },
+      );
+      if (!r.tasks?.length) throw new Error(r.heard ? `Heard “${r.heard}”, but no to-dos in it. Try again?` : 'No to-dos heard. Try again?');
+      setHeard(r.heard || '');
+      setSuggested(r.tasks.map((t) => ({ ...t, checked: true })));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not understand the voice note.');
+    } finally {
+      setVoiceBusy(false);
+    }
+  }
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -136,6 +158,7 @@ export function TasksTab({ slug }: { slug: string }) {
         `/api/host/${slug}/tasks/suggest`,
         { t: token },
       );
+      setHeard(null);
       setSuggested((r.tasks ?? []).map((t) => ({ ...t, checked: true })));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not generate checklist.');
@@ -153,7 +176,7 @@ export function TasksTab({ slug }: { slug: string }) {
         t: token,
         proposal: {
           kind: 'tasks',
-          payload: { tasks: picked.map(({ title, due_date, category, ceremony, priority }) => ({ title, due_date, category, ceremony, priority })) },
+          payload: { tasks: picked.map(({ title, due_date, category, ceremony, assignee, priority }) => ({ title, due_date, category, ceremony, assignee, priority })) },
         },
       });
       setSuggested([]);
@@ -184,8 +207,11 @@ export function TasksTab({ slug }: { slug: string }) {
         <section className="card card-sm pl-proposal-panel">
           <div className="pl-vc-top" style={{ marginBottom: 10 }}>
             <div>
-              <span className="badge ai">✦ Saathi suggests</span>
-              <h2 className="h3" style={{ margin: '4px 0 0' }}>Dated wedding checklist ({suggested.filter((s) => s.checked).length} selected)</h2>
+              <span className="badge ai">{heard !== null ? '🎙️ From your voice note' : '✦ Saathi suggests'}</span>
+              <h2 className="h3" style={{ margin: '4px 0 0' }}>
+                {heard !== null ? 'Tasks you asked for' : 'Dated wedding checklist'} ({suggested.filter((s) => s.checked).length} selected)
+              </h2>
+              {heard && <p className="muted small" style={{ margin: '4px 0 0' }}>Heard: “{heard}”</p>}
             </div>
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSuggested([])}>Dismiss</button>
           </div>
@@ -203,6 +229,8 @@ export function TasksTab({ slug }: { slug: string }) {
                     <div className="pl-badges-inline" style={{ marginTop: 2 }}>
                       {t.category && <span className="badge">{t.category}</span>}
                       {t.ceremony && <span className="badge">{t.ceremony}</span>}
+                      {t.assignee && <span className="badge">{t.assignee}</span>}
+                      {t.priority !== 'normal' && <span className={`badge ${t.priority === 'critical' ? 'bad' : 'warn'}`}>{t.priority}</span>}
                       {t.due_date && <span className="muted tiny">{fmtDate(t.due_date, { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
                     </div>
                   </div>
@@ -239,6 +267,7 @@ export function TasksTab({ slug }: { slug: string }) {
             onChange={(e) => setQuickAssignee(e.target.value)}
           />
           <button type="submit" className="btn btn-cta btn-sm" disabled={!quick.trim()}>Add task</button>
+          <MicButton text="Speak tasks" label="Say your tasks (e.g. “Book the DJ by 10 Jan, ask Riya to finalise the menu”)" busy={voiceBusy} onAudio={tasksFromVoice} />
         </div>
         <div className="pl-chip-row" role="group" aria-label="Priority">
           {(['normal', 'high', 'critical'] as const).map((pr) => (

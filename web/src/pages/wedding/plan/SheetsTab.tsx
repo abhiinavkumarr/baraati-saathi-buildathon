@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { del, patch, post } from '../../../api.ts';
+import { del, patch, post, type Attachment } from '../../../api.ts';
 import { useWedding } from '../../../WeddingContext.tsx';
+import { MicButton } from '../../../components/MicButton.tsx';
+import { readSpreadsheetFile, SPREADSHEET_ACCEPT } from '../../../guestSheet.ts';
 
 interface SheetCol {
   id: string;
@@ -86,13 +88,13 @@ export function SheetsTab({ slug }: { slug: string }) {
     setActiveId(next[0]?.id ?? '');
   }
 
-  async function generateSheet(e: React.FormEvent) {
-    e.preventDefault();
-    if (!aiPrompt.trim()) return;
+  async function generateSheet(e: React.FormEvent | null, audio?: Attachment) {
+    e?.preventDefault();
+    if (!aiPrompt.trim() && !audio) return;
     setAiBusy(true);
     setError('');
     try {
-      const r = await post<{ sheet: SheetDoc }>(`/api/host/${slug}/sheets/suggest`, { t: token, prompt: aiPrompt.trim() });
+      const r = await post<{ sheet: SheetDoc }>(`/api/host/${slug}/sheets/suggest`, audio ? { t: token, audio } : { t: token, prompt: aiPrompt.trim() });
       setSheets((prev) => [r.sheet, ...prev]);
       setActiveId(r.sheet.id);
       setAiPrompt('');
@@ -149,25 +151,25 @@ export function SheetsTab({ slug }: { slug: string }) {
     URL.revokeObjectURL(url);
   }
 
-  function importCsv(file: File | undefined) {
+  /** Replace the open sheet with an .xlsx / .xls / .csv file (first row = headings). */
+  async function importFile(file: File | undefined) {
     if (!file || !active) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = String(reader.result || '');
-      const lines = text.split(/\r?\n/).filter((l) => l.trim());
-      if (!lines.length) return;
-      const parseLine = (l: string) => l.split(',').map((x) => x.replace(/^"|"$/g, '').replace(/""/g, '"').trim());
-      const headers = parseLine(lines[0]).slice(0, 30);
-      const columns: SheetCol[] = headers.map((name, i) => ({ id: `c${i + 1}`, name: name || `Col ${i + 1}`, type: 'text' }));
-      const rows: SheetRow[] = lines.slice(1, 501).map((line, ri) => {
-        const vals = parseLine(line);
+    if (active.rows.length && !window.confirm(`Replace the contents of "${active.name}" with ${file.name}?`)) return;
+    try {
+      const table = (await readSpreadsheetFile(file)).map((r) => r.map((c) => String(c ?? '').trim()));
+      const body = table.filter((r) => r.some(Boolean));
+      if (!body.length) throw new Error('That file is empty.');
+      const width = Math.min(30, Math.max(...body.map((r) => r.length)));
+      const columns: SheetCol[] = Array.from({ length: width }, (_, i) => ({ id: `c${i + 1}`, name: (body[0][i] || `Col ${i + 1}`).slice(0, 60), type: 'text' }));
+      const rows: SheetRow[] = body.slice(1, 501).map((vals, ri) => {
         const cells: Record<string, string | number | boolean> = {};
         columns.forEach((c, ci) => { cells[c.id] = vals[ci] ?? ''; });
         return { id: `r${ri + 1}`, cells };
       });
       scheduleSave({ ...active, columns, rows });
-    };
-    reader.readAsText(file);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not read that file.');
+    }
   }
 
   return (
@@ -194,6 +196,12 @@ export function SheetsTab({ slug }: { slug: string }) {
         <button type="submit" className="btn btn-primary btn-sm" disabled={aiBusy || !aiPrompt.trim()}>
           {aiBusy ? 'Building…' : '✦ Make sheet'}
         </button>
+        <MicButton
+          text="Speak"
+          label="Say what sheet you need (e.g. “Sangeet song list with dancers and song length”)"
+          busy={aiBusy}
+          onAudio={(audio) => generateSheet(null, audio)}
+        />
       </form>
 
       {error && <div className="card card-sm pl-err-box" role="alert"><span className="badge bad">Error</span><p>{error}</p></div>}
@@ -229,9 +237,9 @@ export function SheetsTab({ slug }: { slug: string }) {
                   <span className="muted tiny">{saving === 'saving' ? 'Saving…' : saving === 'saved' ? 'Saved ✓' : ''}</span>
                   <button type="button" className="btn btn-outline btn-sm" onClick={addColumn}>+ Column</button>
                   <button type="button" className="btn btn-outline btn-sm" onClick={addRow}>+ Row</button>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => csvInput.current?.click()}>Import CSV</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => csvInput.current?.click()}>Import Excel / CSV</button>
                   <button type="button" className="btn btn-ghost btn-sm" onClick={exportCsv}>Export CSV</button>
-                  <input ref={csvInput} type="file" accept=".csv,text/csv" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.target.value = ''; }} />
+                  <input ref={csvInput} type="file" accept={SPREADSHEET_ACCEPT} hidden onChange={(e) => { void importFile(e.target.files?.[0]); e.target.value = ''; }} />
                 </div>
               </div>
 

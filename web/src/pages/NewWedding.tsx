@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { fileToAttachment, post, type Attachment, type WeddingDraft } from '../api.ts';
 import { navigate } from '../App.tsx';
 import { useWedding } from '../WeddingContext.tsx';
@@ -61,6 +61,120 @@ function todayIso(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/**
+ * City field with a real dropdown (ARIA combobox). The arrow or a click shows
+ * every city; typing filters; any other city can still be typed in.
+ */
+function CityPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const id = useId();
+  const listId = `${id}-list`;
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState(false); // filter only after the user types
+  const [active, setActive] = useState(-1);
+  const input = useRef<HTMLInputElement>(null);
+  const needle = value.trim().toLowerCase();
+  const options = typed && needle ? INDIAN_CITIES.filter((c) => c.toLowerCase().includes(needle)) : INDIAN_CITIES;
+
+  function show() {
+    setTyped(false);
+    setOpen(true);
+    setActive(Math.max(0, INDIAN_CITIES.findIndex((c) => c.toLowerCase() === needle)));
+  }
+  function pick(c: string) {
+    onChange(c);
+    setOpen(false);
+    setTyped(false);
+    setActive(-1);
+  }
+
+  return (
+    <div className="pl-combo">
+      <label htmlFor={`${id}-input`}>City *</label>
+      <div className="pl-combo-box">
+        <input
+          ref={input}
+          id={`${id}-input`}
+          type="text"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={open && active >= 0 && options[active] ? `${id}-opt-${active}` : undefined}
+          autoComplete="off"
+          required
+          placeholder="e.g. Jaipur"
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setTyped(true);
+            setOpen(true);
+            setActive(0);
+          }}
+          onClick={() => {
+            if (!open) show();
+          }}
+          onBlur={() => setOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              if (!open) show();
+              else setActive((a) => Math.min(options.length - 1, a + 1));
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              setActive((a) => Math.max(0, a - 1));
+            } else if (e.key === 'Enter' && open && options[active]) {
+              e.preventDefault();
+              pick(options[active]);
+            } else if (e.key === 'Escape') {
+              setOpen(false);
+            }
+          }}
+        />
+        <button
+          type="button"
+          className="pl-combo-arrow"
+          tabIndex={-1}
+          aria-label={open ? 'Hide cities' : 'Show cities'}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            if (open) setOpen(false);
+            else {
+              show();
+              input.current?.focus();
+            }
+          }}
+        >
+          ▾
+        </button>
+      </div>
+      {open && (
+        <ul id={listId} role="listbox" aria-label="Cities" className="pl-combo-list">
+          {options.length ? (
+            options.map((c, i) => (
+              <li
+                key={c}
+                id={`${id}-opt-${i}`}
+                role="option"
+                aria-selected={i === active}
+                className={i === active ? 'on' : ''}
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setActive(i)}
+                onClick={() => pick(c)}
+              >
+                {c}
+              </li>
+            ))
+          ) : (
+            <li className="pl-combo-empty" role="presentation">
+              “{value.trim()}” will be used as typed
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 export function NewWedding() {
@@ -134,11 +248,12 @@ export function NewWedding() {
       const next = prev.map((d) => ({ ...d }));
       next[idx].date = val;
       if (val && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
-        // Fill empty later days with consecutive dates
+        // Like the Baraati app: picking a day's date makes every later day
+        // follow it consecutively (Day 2 = next day, Day 3 = the day after…).
         let cursor = val;
         for (let j = idx + 1; j < next.length; j++) {
           cursor = addDaysIso(cursor, 1);
-          if (!next[j].date) next[j].date = cursor;
+          next[j].date = cursor;
         }
       }
       return next;
@@ -470,20 +585,7 @@ export function NewWedding() {
                 </label>
 
                 <div className="pl-form-row">
-                  <label>
-                    City *
-                    <input
-                      type="text"
-                      list="indian-cities"
-                      required
-                      placeholder="e.g. Jaipur"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                    />
-                    <datalist id="indian-cities">
-                      {INDIAN_CITIES.map((c) => <option key={c} value={c} />)}
-                    </datalist>
-                  </label>
+                  <CityPicker value={city} onChange={setCity} />
                   <label>
                     <span>Expected guests <span className="muted">(optional)</span></span>
                     <input

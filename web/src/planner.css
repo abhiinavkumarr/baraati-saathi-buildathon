@@ -1470,3 +1470,56 @@
   background: var(--bg-warm);
   border-color: var(--line-2);
 }
+
+/* ── City dropdown (Create wedding, step 2) ─────────────────────────────── */
+.pl-combo { position: relative; display: flex; flex-direction: column; gap: 6px; }
+.pl-combo-box { position: relative; }
+.pl-combo-box input { padding-right: 48px; }
+.pl-combo-arrow {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 36px; height: 36px; border: none; border-radius: var(--r-pill);
+  background: transparent; color: var(--ink); font-size: 18px; cursor: pointer;
+}
+.pl-combo-arrow:hover { background: rgba(31, 18, 38, 0.06); }
+.pl-combo-list {
+  position: absolute; z-index: 30; top: 100%; left: 0; right: 0; margin: 6px 0 0; padding: 6px;
+  list-style: none; max-height: 260px; overflow-y: auto;
+  background: var(--card); border: 1px solid var(--line-2); border-radius: var(--r-sm);
+  box-shadow: var(--shadow-float);
+}
+.pl-combo-list li { padding: 10px 14px; border-radius: 10px; font-size: 15px; color: var(--ink); cursor: pointer; }
+.pl-combo-list li.on { background: var(--bg-2); }
+.pl-combo-list .pl-combo-empty { color: var(--muted); cursor: default; font-size: 14px; }
+
+/* ── Voice input (Tasks, Sheets, Guests) ───────────────────────────────── */
+.pl-mic-wrap { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pl-mic { flex: none; cursor: pointer; }
+.pl-mic:disabled { opacity: .6; cursor: progress; }
+.pl-mic.rec { animation: plMicPulse 1.2s ease-in-out infinite; }
+.pl-mic-live { color: var(--rose-ink); font-weight: 600; }
+.pl-mic-err { color: var(--bad); }
+.pl-mic-spin {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid rgba(31, 18, 38, 0.2); border-top-color: var(--ink);
+  animation: plSpin .8s linear infinite;
+}
+@keyframes plMicPulse { 50% { box-shadow: 0 0 0 10px rgba(255, 77, 109, .15); } }
+@keyframes plSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .pl-mic.rec, .pl-mic-spin { animation: none; }
+}
+
+/* ── Guest import options ──────────────────────────────────────────────── */
+.pl-import-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.pl-import-opt {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--bg);
+}
+.pl-import-opt b { font-size: 14px; }
+.pl-inline-form { display: flex; gap: 8px; width: 100%; }
+.pl-inline-form input { flex: 1; min-width: 0; min-height: 40px; padding: 8px 14px; font-size: 14px; }
+@media (max-width: 640px) {
+  .pl-import-grid { grid-template-columns: 1fr; }
+}
+.pl-mic-pill { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.pl-mic-pill.rec { background: var(--rose-ink); color: #fff; box-shadow: 0 0 0 4px rgba(255, 77, 109, .2); }

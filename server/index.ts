@@ -34,7 +34,7 @@ app.get('/api/health', async (_req, res) => {
 const TEN_MIN = 10 * 60_000;
 app.use('/api/login', rateLimit('login', 30, TEN_MIN));
 app.use('/api/intake', rateLimit('intake', 40, TEN_MIN));
-app.use(/^\/api\/weddings\/[^/]+\/(art|music|event-art|logo)$/, rateLimit('media', 30, TEN_MIN));
+app.use(/^\/api\/weddings\/[^/]+\/(art|music|event-art|logo|couple-photo)$/, rateLimit('media', 30, TEN_MIN));
 app.use(/^\/api\/weddings\/[^/]+\/rsvp$/, rateLimit('rsvp', 20, TEN_MIN));
 app.use(/^\/api\/saathi\/[^/]+\/chat$/, rateLimit('chat', 40, TEN_MIN));
 app.use(/^\/api\/saathi\/[^/]+\/live-token$/, rateLimit('live', 15, TEN_MIN));
@@ -42,6 +42,7 @@ app.use(/^\/api\/saathi\/[^/]+\/tool$/, rateLimit('tool', 200, TEN_MIN));
 app.use(/^\/api\/host\/[^/]+\/ask$/, rateLimit('ask', 30, TEN_MIN));
 app.use(/^\/api\/host\/[^/]+\/agent$/, rateLimit('agent', 40, TEN_MIN));
 app.use(/^\/api\/host\/[^/]+\/(apply|briefing|home)$/, rateLimit('host', 300, TEN_MIN));
+app.use(/^\/api\/host\/[^/]+\/(tasks\/suggest|tasks\/from-voice|sheets\/suggest|guests\/import-preview|guests\/sheet-link|vendors\/read-quote)$/, rateLimit('planner-ai', 60, TEN_MIN));
 app.use('/api', authRouter);
 app.use('/api', intakeRouter);
 app.use('/api', designRouter);

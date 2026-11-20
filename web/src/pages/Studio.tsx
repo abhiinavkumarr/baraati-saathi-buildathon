@@ -27,6 +27,17 @@ export function Studio({
   const [frame, setFrame] = useState(0); // bump to reload the preview iframe
   const started = useRef(false);
   const photoInput = useRef<HTMLInputElement>(null);
+  const photoOnlyInput = useRef<HTMLInputElement>(null);
+
+  // Save (or replace) the couple photo shown on the invitation, without making art.
+  async function savePhoto(f: File) {
+    try {
+      await post(`/api/weddings/${slug}/couple-photo`, { host_token: hostToken, photo: await fileToAttachment(f) });
+      setFrame((n) => n + 1);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Could not save the photo.');
+    }
+  }
 
   const inviteUrl = `${location.origin}/i/${slug}`;
   const hostUrl = `${location.origin}/h/${slug}?t=${encodeURIComponent(hostToken)}`;
@@ -36,7 +47,8 @@ export function Studio({
     try {
       if (kind === 'music') await post(`/api/weddings/${slug}/music`, { host_token: hostToken });
       else if (kind === 'events') await post(`/api/weddings/${slug}/event-art`, { host_token: hostToken });
-      else await post(`/api/weddings/${slug}/art`, { host_token: hostToken, kind: kind === 'couple' ? 'couple_art' : 'card_art', photo });
+      else if (kind === 'couple') await post(`/api/weddings/${slug}/art`, { host_token: hostToken, kind: 'couple_art', ...(photo ? { photo } : { use_saved_photo: true }) });
+      else await post(`/api/weddings/${slug}/art`, { host_token: hostToken, kind: 'card_art' });
       set('done');
       setFrame((f) => f + 1);
     } catch (e) {
@@ -98,12 +110,33 @@ export function Studio({
             <JobRow label="Ceremony art" sub={`Nano Banana · one scene per ceremony (${w.draft.events.length})`} state={events} onRetry={() => void run('events', setEvents)} />
             <JobRow
               label="Couple illustration"
-              sub="optional · from your photo"
+              sub={w.assets.couple_photo ? 'Nano Banana · from your couple photo' : 'optional · from your photo'}
               state={couple}
-              idleLabel="Add photo"
-              onRetry={() => photoInput.current?.click()}
+              idleLabel={w.assets.couple_photo ? 'Make it' : 'Add photo'}
+              onRetry={() => (w.assets.couple_photo ? void run('couple', setCouple) : photoInput.current?.click())}
             />
           </ul>
+          {w.assets.couple_photo ? (
+            <p className="muted small" style={{ margin: '-4px 0 8px' }}>
+              Your couple photo is on the invitation.{' '}
+              <button type="button" className="linkish" onClick={() => photoOnlyInput.current?.click()}>Change photo</button>
+            </p>
+          ) : (
+            <p className="muted small" style={{ margin: '-4px 0 8px' }}>
+              <button type="button" className="linkish" onClick={() => photoOnlyInput.current?.click()}>Add a couple photo</button> to show it on the invitation.
+            </p>
+          )}
+          <input
+            ref={photoOnlyInput}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (f) void savePhoto(f);
+            }}
+          />
           <input
             ref={photoInput}
             type="file"

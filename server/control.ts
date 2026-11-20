@@ -765,9 +765,9 @@ export async function applyProposal(
         const due_date = /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : null;
         const priority = ['normal', 'high', 'critical'].includes(String(r.priority)) ? String(r.priority) : 'normal';
         await db.query(
-          `INSERT INTO tasks (wedding_id, title, category, ceremony, priority, due_date, source)
-           VALUES ($1, $2, $3, $4, $5, $6, 'ai')`,
-          [w.id, title, str(r.category, 60) || null, str(r.ceremony, 60) || null, priority, due_date],
+          `INSERT INTO tasks (wedding_id, title, category, ceremony, assignee, priority, due_date, source)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'ai')`,
+          [w.id, title, str(r.category, 60) || null, str(r.ceremony, 60) || null, str(r.assignee, 80) || null, priority, due_date],
         );
         added++;
       }

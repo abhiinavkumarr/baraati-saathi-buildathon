@@ -64,6 +64,8 @@ server/
   db.ts         AlloyDB via pg, or embedded PGlite fallback; sandbox()
   skills.ts     loads .agents/skills/*/SKILL.md
 web/src/        React 19 + Vite: WeddingContext, teaser.ts, Saathi.tsx, live.ts (voice),
+                guestSheet.ts (Excel/CSV/Google Sheets guest import, mapped in the browser),
+                components/MicButton.tsx (voice notes for Tasks, Sheets, Guests),
                 components/agent/ (ControlRoom, ProposalCard, AskSaathiDrawer),
                 pages/ (Login, MyWeddings, NewWedding, Create, Studio, Invite,
                         wedding/{WeddingShell, WeddingHome, plan/*, app/*, studio/*})

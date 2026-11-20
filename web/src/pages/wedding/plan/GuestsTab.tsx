@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { del, fileToAttachment, patch, post, type Attachment } from '../../../api.ts';
 import { useWedding } from '../../../WeddingContext.tsx';
 import { fmtDate, fmtTime } from '../../../format.ts';
+import { MicButton } from '../../../components/MicButton.tsx';
+import { mapGuestTable, readCsvText, readSpreadsheetFile, SPREADSHEET_ACCEPT, tableToText, type ImportGuest } from '../../../guestSheet.ts';
 
 export interface GuestItem {
   id: string;
@@ -72,7 +74,12 @@ export function GuestsTab({ slug }: { slug: string }) {
   const [importText, setImportText] = useState('');
   const [importImage, setImportImage] = useState<Attachment | null>(null);
   const [importBusy, setImportBusy] = useState(false);
-  const [previewRows, setPreviewRows] = useState<{ name: string; party_size: number; side: string; group_name: string; relation: string }[]>([]);
+  const [previewRows, setPreviewRows] = useState<ImportGuest[]>([]);
+  const [sheetLink, setSheetLink] = useState('');
+  const [importNote, setImportNote] = useState('');
+  const [flash, setFlash] = useState('');
+  const fileInput = useRef<HTMLInputElement>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -239,16 +246,15 @@ export function GuestsTab({ slug }: { slug: string }) {
     });
   }
 
-  async function runImportPreview() {
+  /** AI path: pasted text, a photo/PDF, a voice note, or a sheet we couldn't map. */
+  async function runImportPreview(input: { text?: string; image?: Attachment; audio?: Attachment } = { text: importText, image: importImage ?? undefined }) {
     setImportBusy(true);
     setError('');
     try {
-      const r = await post<{ guests: typeof previewRows }>(`/api/host/${slug}/guests/import-preview`, {
-        t: token,
-        text: importText,
-        image: importImage ?? undefined,
-      });
-      setPreviewRows(r.guests ?? []);
+      const r = await post<{ guests: ImportGuest[] }>(`/api/host/${slug}/guests/import-preview`, { t: token, ...input });
+      const rows = r.guests ?? [];
+      if (!rows.length) throw new Error('Saathi could not find any guest names in that. Try another way.');
+      setPreviewRows(rows);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not parse guest list.');
     } finally {
@@ -256,15 +262,63 @@ export function GuestsTab({ slug }: { slug: string }) {
     }
   }
 
+  /** Spreadsheet path: map columns by their headers, in the browser. */
+  async function loadTable(table: unknown[][], source: string) {
+    const mapped = mapGuestTable(table);
+    if (mapped && mapped.length) {
+      setPreviewRows(mapped);
+      setImportNote(`${mapped.length} guests read from ${source}. Columns were matched by their headings; nothing was sent to the AI.`);
+      return;
+    }
+    if (mapped) throw new Error(`No guest rows found in ${source}.`);
+    // No recognisable "Name" column: let Saathi read it (the server strips phone numbers first).
+    setImportNote(`The columns in ${source} weren't recognised, so Saathi read the sheet (phone numbers removed first).`);
+    await runImportPreview({ text: tableToText(table) });
+  }
+
+  async function onSpreadsheet(file: File | undefined) {
+    if (!file) return;
+    setImportBusy(true);
+    setError('');
+    setImportNote('');
+    try {
+      await loadTable(await readSpreadsheetFile(file), file.name);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not read that file. Save it as .xlsx or .csv and try again.');
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
+  async function fetchSheetLink(e: React.FormEvent) {
+    e.preventDefault();
+    if (!sheetLink.trim()) return;
+    setImportBusy(true);
+    setError('');
+    setImportNote('');
+    try {
+      const r = await post<{ csv: string }>(`/api/host/${slug}/guests/sheet-link`, { t: token, url: sheetLink.trim() });
+      await loadTable(await readCsvText(r.csv), 'your Google Sheet');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not open that Google Sheet.');
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
   async function commitImport() {
-    if (!previewRows.length) return;
+    const rows = previewRows.filter((r) => r.name.trim());
+    if (!rows.length) return;
     setImportBusy(true);
     try {
-      await post(`/api/host/${slug}/guests/bulk`, { t: token, guests: previewRows });
+      const r = await post<{ added: number; skipped: number }>(`/api/host/${slug}/guests/bulk`, { t: token, guests: rows });
       setPreviewRows([]);
       setImportText('');
       setImportImage(null);
+      setSheetLink('');
+      setImportNote('');
       setImportOpen(false);
+      setFlash(`Added ${r.added} guest${r.added === 1 ? '' : 's'}${r.skipped ? ` · ${r.skipped} already on your list were skipped` : ''}.`);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not import guests.');
@@ -286,8 +340,8 @@ export function GuestsTab({ slug }: { slug: string }) {
           </p>
         </div>
         <div className="pl-actions-row">
-          <button type="button" className="btn btn-outline btn-sm" onClick={() => setImportOpen((v) => !v)}>
-            ✦ Paste or snap list
+          <button type="button" className="btn btn-outline btn-sm" aria-expanded={importOpen} onClick={() => setImportOpen((v) => !v)}>
+            ⇪ Import list
           </button>
           <button type="button" className="btn btn-outline btn-sm" onClick={exportCsv}>Export CSV</button>
           <button type="button" className="btn btn-cta btn-sm" onClick={openAdd}>+ Add guest</button>
@@ -298,74 +352,140 @@ export function GuestsTab({ slug }: { slug: string }) {
         <section className="card card-sm pl-proposal-panel">
           <div className="pl-vc-top" style={{ marginBottom: 8 }}>
             <div>
-              <span className="badge ai">✦ AI guest import</span>
-              <h2 className="h3" style={{ margin: '4px 0 0' }}>Paste or snap your guest list</h2>
-              <p className="muted tiny" style={{ margin: '2px 0 0' }}>Phone numbers are automatically stripped before Gemini reads the list.</p>
+              <span className="badge ai">✦ Import guests</span>
+              <h2 className="h3" style={{ margin: '4px 0 0' }}>Bring in your guest list</h2>
+              <p className="muted tiny" style={{ margin: '2px 0 0' }}>
+                From Excel, Google Sheets, a photo, WhatsApp text or your voice. Phone numbers are never sent to the AI.
+              </p>
             </div>
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => setImportOpen(false)}>Close</button>
           </div>
           {previewRows.length === 0 ? (
-            <div className="pl-form-stack" style={{ marginTop: 8, gap: 10 }}>
+            <div className="pl-form-stack" style={{ marginTop: 8, gap: 12 }}>
+              <div className="pl-import-grid">
+                <div className="pl-import-opt">
+                  <b>Excel or CSV file</b>
+                  <span className="muted tiny">.xlsx, .xls or .csv, with a header row</span>
+                  <button type="button" className="btn btn-outline btn-sm" disabled={importBusy} onClick={() => fileInput.current?.click()}>
+                    Choose file
+                  </button>
+                  <input
+                    ref={fileInput}
+                    type="file"
+                    hidden
+                    accept={SPREADSHEET_ACCEPT}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = '';
+                      void onSpreadsheet(f);
+                    }}
+                  />
+                </div>
+                <form className="pl-import-opt" onSubmit={(e) => void fetchSheetLink(e)}>
+                  <b>Google Sheets link</b>
+                  <span className="muted tiny">Share it as “Anyone with the link”</span>
+                  <div className="pl-inline-form">
+                    <input
+                      type="url"
+                      aria-label="Google Sheets link"
+                      placeholder="https://docs.google.com/spreadsheets/d/…"
+                      value={sheetLink}
+                      onChange={(e) => setSheetLink(e.target.value)}
+                    />
+                    <button type="submit" className="btn btn-outline btn-sm" disabled={importBusy || !sheetLink.trim()}>Fetch</button>
+                  </div>
+                </form>
+                <div className="pl-import-opt">
+                  <b>Photo or PDF of a list</b>
+                  <span className="muted tiny">Handwritten lists work too</span>
+                  <button type="button" className="btn btn-outline btn-sm" disabled={importBusy} onClick={() => photoInput.current?.click()}>
+                    Choose photo
+                  </button>
+                  <input
+                    ref={photoInput}
+                    type="file"
+                    hidden
+                    accept="image/png,image/jpeg,image/webp,application/pdf"
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = '';
+                      if (!f) return;
+                      setImportNote('');
+                      const image = await fileToAttachment(f, f.name);
+                      setImportImage(image);
+                      await runImportPreview({ image });
+                    }}
+                  />
+                </div>
+                <div className="pl-import-opt">
+                  <b>Say the names</b>
+                  <span className="muted tiny">Hindi, English or Hinglish</span>
+                  <MicButton
+                    text="Record names"
+                    label="Record guest names"
+                    busy={importBusy}
+                    onAudio={async (audio) => {
+                      setImportNote('');
+                      await runImportPreview({ audio });
+                    }}
+                  />
+                </div>
+              </div>
               <textarea
-                rows={4}
-                aria-label="Paste WhatsApp or Excel guest list"
-                placeholder={'Paste lines from WhatsApp or Excel, e.g.\nSharma family (4) - Bride side\nRohan & Priya - College friends'}
+                rows={3}
+                aria-label="Paste a guest list from WhatsApp or anywhere"
+                placeholder={'Or paste lines from WhatsApp, e.g.\nSharma family (4) - Bride side\nRohan & Priya - College friends'}
                 value={importText}
                 onChange={(e) => setImportText(e.target.value)}
               />
-              <div className="pl-row-btns">
-                <input
-                  type="file"
-                  accept="image/*,.csv,text/csv"
-                  aria-label="Upload photo or CSV of guest list"
-                  onChange={async (e) => {
-                    const f = e.target.files?.[0];
-                    if (!f) return;
-                    if (f.name.endsWith('.csv') || f.type === 'text/csv') {
-                      setImportText(await f.text());
-                      setImportImage(null);
-                    } else {
-                      setImportImage(await fileToAttachment(f, f.name));
-                    }
-                  }}
-                />
+              <div className="pl-row-btns" style={{ justifyContent: 'space-between' }}>
+                <span className="muted small" role="status">{importBusy ? 'Reading your list…' : ''}</span>
                 <button
                   type="button"
                   className="btn btn-cta btn-sm"
-                  disabled={importBusy || (!importText.trim() && !importImage)}
-                  onClick={() => void runImportPreview()}
+                  disabled={importBusy || !importText.trim()}
+                  onClick={() => void runImportPreview({ text: importText })}
                 >
-                  {importBusy ? 'Reading list…' : 'Preview guests →'}
+                  {importBusy ? 'Reading list…' : 'Preview pasted list →'}
                 </button>
               </div>
             </div>
           ) : (
             <div style={{ marginTop: 10 }}>
+              {importNote && <p className="muted small" style={{ margin: '0 0 6px' }}>{importNote}</p>}
               <p className="small" style={{ margin: '0 0 8px' }}>Review and edit before adding ({previewRows.length} guests):</p>
-              <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+              <div style={{ maxHeight: 320, overflowY: 'auto' }} tabIndex={0} role="region" aria-label="Guests to import">
                 <table className="pl-table">
                   <thead>
-                    <tr><th>Name</th><th>Party</th><th>Side</th><th>Group</th><th /></tr>
+                    <tr><th>Name</th><th>Party</th><th>Side</th><th>Group</th><th>RSVP</th><th><span className="sr-only">Remove</span></th></tr>
                   </thead>
                   <tbody>
                     {previewRows.map((row, idx) => (
                       <tr key={idx}>
-                        <td><input type="text" className="pl-cell-input" value={row.name} onChange={(e) => setPreviewRows((p) => p.map((r, i) => (i === idx ? { ...r, name: e.target.value } : r)))} /></td>
-                        <td style={{ width: 70 }}><input type="number" min={1} max={20} className="pl-cell-input" value={row.party_size} onChange={(e) => setPreviewRows((p) => p.map((r, i) => (i === idx ? { ...r, party_size: Number(e.target.value) || 1 } : r)))} /></td>
                         <td>
-                          <select className="pl-cell-input" value={row.side} onChange={(e) => setPreviewRows((p) => p.map((r, i) => (i === idx ? { ...r, side: e.target.value } : r)))}>
+                          <input type="text" aria-label={`Name, row ${idx + 1}`} className="pl-cell-input" value={row.name} onChange={(e) => setPreviewRows((p) => p.map((r, i) => (i === idx ? { ...r, name: e.target.value } : r)))} />
+                          {row.phone && <span className="muted tiny">📱 ••{row.phone.slice(-4)}</span>}
+                        </td>
+                        <td style={{ width: 70 }}><input type="number" aria-label={`Party size, row ${idx + 1}`} min={1} max={20} className="pl-cell-input" value={row.party_size} onChange={(e) => setPreviewRows((p) => p.map((r, i) => (i === idx ? { ...r, party_size: Number(e.target.value) || 1 } : r)))} /></td>
+                        <td>
+                          <select aria-label={`Side, row ${idx + 1}`} className="pl-cell-input" value={row.side} onChange={(e) => setPreviewRows((p) => p.map((r, i) => (i === idx ? { ...r, side: e.target.value } : r)))}>
                             <option value="">—</option><option value="bride">Bride</option><option value="groom">Groom</option><option value="both">Both</option>
                           </select>
                         </td>
-                        <td><input type="text" className="pl-cell-input" value={row.group_name} onChange={(e) => setPreviewRows((p) => p.map((r, i) => (i === idx ? { ...r, group_name: e.target.value } : r)))} /></td>
-                        <td><button type="button" className="btn btn-ghost btn-sm" onClick={() => setPreviewRows((p) => p.filter((_, i) => i !== idx))}>✕</button></td>
+                        <td><input type="text" aria-label={`Group, row ${idx + 1}`} className="pl-cell-input" value={row.group_name} onChange={(e) => setPreviewRows((p) => p.map((r, i) => (i === idx ? { ...r, group_name: e.target.value } : r)))} /></td>
+                        <td>
+                          <select aria-label={`RSVP, row ${idx + 1}`} className="pl-cell-input" value={row.status || 'pending'} onChange={(e) => setPreviewRows((p) => p.map((r, i) => (i === idx ? { ...r, status: e.target.value } : r)))}>
+                            <option value="pending">Pending</option><option value="yes">Coming</option><option value="maybe">Maybe</option><option value="no">Can&apos;t come</option>
+                          </select>
+                        </td>
+                        <td><button type="button" className="btn btn-ghost btn-sm" aria-label={`Remove ${row.name || `row ${idx + 1}`}`} onClick={() => setPreviewRows((p) => p.filter((_, i) => i !== idx))}>✕</button></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
               <div className="pl-wizard-actions" style={{ marginTop: 12 }}>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPreviewRows([])}>← Back</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setPreviewRows([]); setImportNote(''); }}>← Back</button>
                 <button type="button" className="btn btn-cta btn-sm" disabled={importBusy} onClick={() => void commitImport()}>
                   {importBusy ? 'Adding…' : `Add ${previewRows.length} guests`}
                 </button>
@@ -376,6 +496,12 @@ export function GuestsTab({ slug }: { slug: string }) {
       )}
 
       {error && <div className="card card-sm pl-err-box" role="alert"><span className="badge bad">Error</span><p>{error}</p></div>}
+      {flash && !error && (
+        <div className="card card-sm pl-err-box" role="status">
+          <span className="badge ok">Done</span><p>{flash}</p>
+          <button type="button" className="btn btn-ghost btn-sm" aria-label="Dismiss" onClick={() => setFlash('')}>✕</button>
+        </div>
+      )}
 
       <section className="card card-sm pl-filters-card">
         <input

@@ -69,6 +69,12 @@ export async function withFallback<T>(models: string[], call: (model: string) =>
         return await call(model);
       } catch (e) {
         last = e;
+        // Prepaid Gemini credit ran out (HTTP 402): every model fails the same
+        // way, so stop at once with a message a host can act on.
+        if ((e as { status?: number })?.status === 402 || /\b402\b|prepayment credits|credits are depleted/i.test(String((e as Error)?.message))) {
+          console.error(`[gemini] ${model}: API prepaid credit exhausted (402)`);
+          throw new HttpError(402, "Saathi's AI is paused right now: the Gemini API credit for this project ran out. Please try again later.");
+        }
         // A Free-tier quota of zero never clears: say so instead of retrying.
         if (/Free Tier|limit: 0/i.test(String((e as Error)?.message))) {
           console.error(`[gemini] ${model} not available on this key's tier`);

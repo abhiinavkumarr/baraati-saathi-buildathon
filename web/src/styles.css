@@ -236,3 +236,4 @@ p { line-height: 1.6; }
 @media (max-width: 480px) {
   .land-steps { grid-template-columns: 1fr; }
 }
+.linkish { background: none; border: none; padding: 0; font: inherit; color: var(--rose-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
