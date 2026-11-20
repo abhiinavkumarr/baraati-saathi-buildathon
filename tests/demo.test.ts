@@ -72,6 +72,7 @@ test('demo is read-only: writes refused, reads and AI previews allowed', async (
     ['POST', `/api/host/${slug}/agent`],
     ['POST', `/api/host/${slug}/ask`],
     ['POST', `/api/host/${slug}/tasks/suggest`],
+    ['POST', `/api/host/${slug}/messages`],
     ['POST', '/api/host/some-other-wedding/guests'],
     ['POST', '/api/weddings'],
   ]) {

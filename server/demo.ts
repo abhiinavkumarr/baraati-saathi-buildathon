@@ -43,7 +43,7 @@ export function isDemoSlug(slug: string): boolean {
 
 // POSTs on the demo that change nothing: the agent (it only proposes; /apply is
 // refused), Ask your guest list (sandboxed, rolled back) and AI previews.
-const DEMO_SAFE = /^\/(agent|ask|tasks\/suggest|tasks\/from-voice|guests\/import-preview|guests\/sheet-link|vendors\/read-quote)$/;
+const DEMO_SAFE = /^\/(agent|ask|tasks\/suggest|tasks\/from-voice|guests\/import-preview|guests\/sheet-link|vendors\/read-quote|messages)$/;
 
 /** Refuse any write to the demo wedding. Mounted before every router. */
 export const demoGuard: RequestHandler = (req, res, next) => {

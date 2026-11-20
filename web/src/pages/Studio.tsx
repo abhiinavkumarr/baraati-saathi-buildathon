@@ -3,6 +3,7 @@ import { fileToAttachment, post } from '../api.ts';
 import { renderCard } from '../card.ts';
 import { storage } from '../format.ts';
 import { useWedding } from './Invite.tsx';
+import { useWedding as useWeddingList } from '../WeddingContext.tsx';
 
 type Job = 'idle' | 'working' | 'done' | 'failed';
 
@@ -19,6 +20,8 @@ export function Studio({
 }) {
   const hostToken = tokenOverride ?? storage(`host:${slug}`) ?? new URLSearchParams(location.search).get('t') ?? '';
   const { w } = useWedding(slug, 5000);
+  // The shared demo is view-only: show what exists, don't start generating.
+  const isDemo = Boolean(useWeddingList().getWeddingBySlug(slug)?.demo);
   const [art, setArt] = useState<Job>('idle');
   const [music, setMusic] = useState<Job>('idle');
   const [couple, setCouple] = useState<Job>('idle');
@@ -61,6 +64,13 @@ export function Studio({
   useEffect(() => {
     if (!w || started.current || !hostToken) return;
     started.current = true;
+    if (isDemo) {
+      setArt(w.assets.card_art ? 'done' : 'idle');
+      setMusic(w.assets.music ? 'done' : 'idle');
+      setEvents(w.assets.events && Object.keys(w.assets.events).length ? 'done' : 'idle');
+      if (w.assets.couple_art) setCouple('done');
+      return;
+    }
     if (!w.assets.card_art) void run('art', setArt);
     else setArt('done');
     if (!w.assets.music) void run('music', setMusic);

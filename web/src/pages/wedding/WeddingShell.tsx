@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { navigate } from '../../App.tsx';
 import { useWedding } from '../../WeddingContext.tsx';
 import { AskSaathiDrawer } from '../../components/agent/AskSaathiDrawer.tsx';
+import { GoogleAiTour, startGoogleAiTour } from '../../components/GoogleAiTour.tsx';
 import '../../planner.css';
 
 export type SectionKey = 'home' | 'plan' | 'app' | 'studio';
@@ -184,6 +185,9 @@ export function WeddingShell({
               You&apos;re exploring Meera &amp; Rohan&apos;s sample wedding. It&apos;s view-only: look around and ask Saathi
               anything, but changes aren&apos;t saved.
             </p>
+            <button type="button" className="btn btn-outline btn-sm" onClick={startGoogleAiTour}>
+              ✦ Google AI tour
+            </button>
             <button type="button" className="btn btn-cta btn-sm" onClick={() => navigate('/new')}>
               Create your wedding →
             </button>
@@ -191,6 +195,7 @@ export function WeddingShell({
         )}
         {children}
       </main>
+      {wedding?.demo && <GoogleAiTour slug={slug} />}
       <div className="pl-toast-wrap" role="status" aria-live="polite">
         {demoNotice && (
           <div className="pl-toast">
