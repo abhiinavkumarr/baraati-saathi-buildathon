@@ -161,10 +161,10 @@ export function Create() {
       ) : (
         <section className="workspace">
           <div className="chat">
-            <div className="turns">
+            <div className="turns" role="log" aria-live="polite" aria-label="Conversation with Saathi">
               {turns.map((t, i) => (
                 <div key={i} className={`bubble ${t.role}`}>
-                  {t.files?.length ? <div className="files">📎 {t.files.join(', ')}</div> : null}
+                  {t.files?.length ? <div className="files"><span aria-hidden>📎 </span><span className="sr-only">Attached: </span>{t.files.join(', ')}</div> : null}
                   {t.text || null}
                 </div>
               ))}
@@ -172,7 +172,7 @@ export function Create() {
               <div ref={endRef} />
             </div>
 
-            {error && <p className="error">{error}</p>}
+            {error && <p className="error" role="alert">{error}</p>}
 
             {suggestions.length > 0 && !busy && (
               <div className="chips">
@@ -189,21 +189,22 @@ export function Create() {
                 void send(text);
               }}
             >
-              <button type="button" className="icon-btn" title="Attach card" onClick={() => fileInput.current?.click()}>📎</button>
+              <button type="button" className="icon-btn" title="Attach card" aria-label="Attach a card photo or PDF" onClick={() => fileInput.current?.click()}>📎</button>
               <input
+                aria-label="Message to Saathi"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder={pending.length ? `${pending.length} file(s) attached — add a note or send` : 'Type, or tap the mic and speak…'}
                 disabled={busy}
               />
-              <button type="button" className={`icon-btn ${recording ? 'rec' : ''}`} title="Voice note" onClick={() => void toggleMic()}>
+              <button type="button" className={`icon-btn ${recording ? 'rec' : ''}`} title="Voice note" aria-label={recording ? 'Stop recording and send' : 'Record a voice note'} aria-pressed={recording} onClick={() => void toggleMic()}>
                 {recording ? '■' : '🎙️'}
               </button>
               <button type="submit" className="send" disabled={busy}>Send</button>
             </form>
           </div>
 
-          <aside className="preview">
+          <aside className="preview" aria-label="Wedding details so far">
             <p className="eyebrow">Your wedding</p>
             <h2 className="display couple">
               {draft.partner1_name || '—'} <span className="amp">&amp;</span> {draft.partner2_name || '—'}

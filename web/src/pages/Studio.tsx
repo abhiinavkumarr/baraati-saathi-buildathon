@@ -96,13 +96,13 @@ export function Studio({ slug }: { slug: string }) {
               if (f) void run('couple', setCouple, await fileToAttachment(f));
             }}
           />
-          {msg && <p className="error">{msg}</p>}
+          {msg && <p className="error" role="alert">{msg}</p>}
 
           <div className="share">
             <img className="qr" src={`/api/qr?url=${encodeURIComponent(inviteUrl)}`} alt="QR code for the invitation" />
             <div className="share-actions">
               <a className="pill solid" href={`https://wa.me/?text=${waText}`} target="_blank" rel="noreferrer">Share on WhatsApp</a>
-              <button className="pill" onClick={() => void navigator.clipboard?.writeText(inviteUrl)}>Copy link</button>
+              <CopyButton text={inviteUrl} />
               <button className="pill" onClick={() => void download()}>Download card</button>
               <a className="pill" href={hostUrl}>Guest dashboard →</a>
             </div>
@@ -121,14 +121,35 @@ export function Studio({ slug }: { slug: string }) {
   );
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      className="pill"
+      aria-live="polite"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        } catch {
+          prompt('Copy this link', text);
+        }
+      }}
+    >
+      {copied ? 'Copied ✓' : 'Copy link'}
+    </button>
+  );
+}
+
 function JobRow({ label, sub, state, onRetry, idleLabel = 'Retry' }: {
   label: string; sub: string; state: Job; onRetry: () => void; idleLabel?: string;
 }) {
   return (
     <li className={`job ${state}`}>
-      <span className="dot" />
+      <span className="dot" aria-hidden />
       <span className="job-text"><b>{label}</b><span>{sub}</span></span>
-      {state === 'working' && <span className="job-state">Creating…</span>}
+      {state === 'working' && <span className="job-state" role="status">Creating…</span>}
       {state === 'done' && <span className="job-state ok">Ready</span>}
       {(state === 'failed' || state === 'idle') && <button className="link" onClick={onRetry}>{state === 'failed' ? 'Retry' : idleLabel}</button>}
     </li>

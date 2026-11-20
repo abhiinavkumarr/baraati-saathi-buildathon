@@ -69,3 +69,13 @@ button { font: inherit; cursor: pointer; }
 .events li span { font-size: 14px; }
 .primary { width: 100%; border: none; border-radius: 100px; padding: 14px; font-weight: 700; background: var(--rose); color: #fff; }
 .primary:disabled { background: var(--line); color: var(--muted); cursor: default; }
+
+/* Accessibility: a visible keyboard focus ring everywhere, and calm motion
+   for people who ask their OS for less of it. */
+:focus-visible { outline: 3px solid var(--gold-dp); outline-offset: 2px; border-radius: 6px; }
+.gate:focus-visible { outline-offset: -6px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  .reveal { opacity: 1 !important; transform: none !important; }
+}

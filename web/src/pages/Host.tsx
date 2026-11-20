@@ -57,7 +57,7 @@ export function Host({ slug }: { slug: string }) {
     <main className="host">
       <header className="brand">
         <span className="wordmark"><b>B</b>ARAATI</span> <span className="tag">Saathi</span>
-        <span className="live">● Live</span>
+        <span className="live"><span className="live-dot" aria-hidden>●</span> Live</span>
       </header>
       <h1 className="display couple">{data.draft.partner1_name} <span className="amp">&amp;</span> {data.draft.partner2_name}</h1>
 

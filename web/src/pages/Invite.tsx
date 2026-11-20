@@ -84,6 +84,7 @@ export function Invite({ slug }: { slug: string }) {
       {!open && (
         <button
           className="gate"
+          aria-label={`Open the wedding invitation of ${d.partner1_name} and ${d.partner2_name}`}
           onClick={() => {
             setOpen(true);
             toggleMusic(true);
@@ -114,7 +115,7 @@ export function Invite({ slug }: { slug: string }) {
           <p className="date-line">{dateLine}</p>
           {d.city && <p className="city">{d.city}</p>}
         </div>
-        <span className="scroll-hint">Scroll</span>
+        <span className="scroll-hint" aria-hidden>Scroll</span>
       </section>
 
       {w.assets.couple_art && (
@@ -131,7 +132,7 @@ export function Invite({ slug }: { slug: string }) {
             <h3>{e.name}</h3>
             {e.venue_name && <p className="venue">{e.venue_name}</p>}
             {e.venue_address && (
-              <a className="map" target="_blank" rel="noreferrer"
+              <a className="map" target="_blank" rel="noreferrer" aria-label={`Directions to ${e.venue_name || e.name} (opens Google Maps)`}
                 href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${e.venue_name} ${e.venue_address}`)}`}>
                 Directions
               </a>
@@ -192,8 +193,8 @@ function Rsvp({ slug, disabled }: { slug: string; disabled: boolean }) {
 
   if (done) {
     return (
-      <section className="rsvp reveal in">
-        <h2 className="section-title">Thank you! 🙏</h2>
+      <section className="rsvp reveal in" aria-live="polite">
+        <h2 className="section-title">Thank you! <span aria-hidden>🙏</span></h2>
         <p>Your RSVP has reached the family.</p>
         <div className="after-rsvp">
           <button className="pill" onClick={() => setDone(false)}>Change my answer</button>
@@ -207,25 +208,25 @@ function Rsvp({ slug, disabled }: { slug: string; disabled: boolean }) {
     <section className="rsvp reveal">
       <h2 className="section-title">Will you join us?</h2>
       <form onSubmit={submit}>
-        <div className="rsvp-choices">
+        <div className="rsvp-choices" role="group" aria-label="Your answer">
           {([['yes', 'Joyfully yes'], ['maybe', 'Not sure yet'], ['no', "Can't make it"]] as const).map(([v, label]) => (
-            <button type="button" key={v} className={`rsvp-choice ${status === v ? 'on' : ''}`} onClick={() => setStatus(v)}>
+            <button type="button" key={v} className={`rsvp-choice ${status === v ? 'on' : ''}`} aria-pressed={status === v} onClick={() => setStatus(v)}>
               {label}
             </button>
           ))}
         </div>
         {status && (
           <div className="rsvp-fields">
-            <input required placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
-            <input placeholder="Phone (optional, for updates)" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <input required aria-label="Your name" autoComplete="name" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
+            <input aria-label="Phone (optional)" autoComplete="tel" type="tel" placeholder="Phone (optional, for updates)" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
             {status !== 'no' && (
               <label className="party">
                 People coming
                 <input type="number" min={1} max={20} value={party} onChange={(e) => setParty(Number(e.target.value) || 1)} />
               </label>
             )}
-            <textarea rows={3} placeholder={notePlaceholder} value={note} onChange={(e) => setNote(e.target.value)} />
-            {error && <p className="error">{error}</p>}
+            <textarea rows={3} aria-label={status === 'no' ? 'Message for the couple' : 'Anything the family should know: who is coming, arrival, food'} placeholder={notePlaceholder} value={note} onChange={(e) => setNote(e.target.value)} />
+            {error && <p className="error" role="alert">{error}</p>}
             <button className="rsvp-send" disabled={busy || disabled}>
               {disabled ? 'RSVP (preview)' : busy ? 'Sending…' : 'Send RSVP'}
             </button>

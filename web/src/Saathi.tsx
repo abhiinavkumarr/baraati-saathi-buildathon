@@ -26,12 +26,30 @@ export function Saathi({ slug, coupleNames }: { slug: string; coupleNames: strin
   const [voiceErr, setVoiceErr] = useState('');
   const stopRef = useRef<(() => void) | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const fabRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
   const guestToken = () => storage(`guest:${slug}`) ?? '';
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' }); // never return the Promise
   }, [msgs, busy]);
   useEffect(() => () => stopRef.current?.(), []);
+  // Keyboard and screen-reader users land in the composer on open and back on
+  // the button on close.
+  useEffect(() => {
+    // Not on touch screens: focusing would pop the keyboard over voice users.
+    if (open && matchMedia('(pointer: fine)').matches) inputRef.current?.focus();
+    else if (wasOpen.current) fabRef.current?.focus();
+    wasOpen.current = open;
+  }, [open]);
+
+  function close() {
+    stopRef.current?.();
+    stopRef.current = null;
+    setVoice('off');
+    setOpen(false);
+  }
 
   async function ask(q: string) {
     if (!q.trim() || busy) return;
@@ -96,30 +114,31 @@ export function Saathi({ slug, coupleNames }: { slug: string; coupleNames: strin
 
   if (!open) {
     return (
-      <button className="saathi-fab" onClick={() => setOpen(true)}>
-        <span className="saathi-dot" /> Ask Saathi
+      <button ref={fabRef} className="saathi-fab" aria-haspopup="dialog" onClick={() => setOpen(true)}>
+        <span className="saathi-dot" aria-hidden /> Ask Saathi
       </button>
     );
   }
 
   return (
-    <div className="saathi-panel" role="dialog" aria-label="Ask Saathi">
+    <div className="saathi-panel" role="dialog" aria-label="Ask Saathi" onKeyDown={(e) => e.key === 'Escape' && close()}>
       <header>
         <div>
           <b>Saathi</b>
-          <span>{voice === 'off' ? 'Wedding helper · Hindi & English' : voice === 'connecting' ? 'Connecting…' : voice === 'speaking' ? 'Speaking…' : voice === 'listening' ? 'Listening — just speak' : 'Voice error'}</span>
+          <span aria-live="polite">{voice === 'off' ? 'Wedding helper · Hindi & English' : voice === 'connecting' ? 'Connecting…' : voice === 'speaking' ? 'Speaking…' : voice === 'listening' ? 'Listening — just speak' : 'Voice error'}</span>
         </div>
-        <button className="x" aria-label="Close" onClick={() => { stopRef.current?.(); stopRef.current = null; setVoice('off'); setOpen(false); }}>×</button>
+        <button className="x" aria-label="Close Saathi" onClick={close}>×</button>
       </header>
 
-      <div className="saathi-msgs">
+      {/* A live log: every reply, typed or spoken, also appears as text (captions for voice). */}
+      <div className="saathi-msgs" role="log" aria-live="polite" aria-label="Conversation with Saathi">
         {msgs.map((m, i) => (
           <div key={i} className={`s-bubble ${m.role} ${m.live ? 'live' : ''}`}>
             {m.text}
             {m.note && <span className="s-note">✓ {m.note}</span>}
           </div>
         ))}
-        {busy && <div className="s-bubble saathi live">…</div>}
+        {busy && <div className="s-bubble saathi live" aria-label="Saathi is typing">…</div>}
         <div ref={endRef} />
       </div>
 
@@ -128,13 +147,13 @@ export function Saathi({ slug, coupleNames }: { slug: string; coupleNames: strin
           {SUGGESTIONS.map((s) => <button key={s} onClick={() => void ask(s)}>{s}</button>)}
         </div>
       )}
-      {voiceErr && <p className="s-err">{voiceErr}</p>}
+      {voiceErr && <p className="s-err" role="alert">{voiceErr}</p>}
 
       <form className="s-composer" onSubmit={(e) => { e.preventDefault(); void ask(text); }}>
-        <button type="button" className={`s-mic ${voice}`} onClick={() => void toggleVoice()} aria-label={voice === 'off' || voice === 'error' ? 'Talk to Saathi' : 'Stop talking'}>
+        <button type="button" className={`s-mic ${voice}`} onClick={() => void toggleVoice()} aria-label={voice === 'off' || voice === 'error' ? 'Talk to Saathi by voice' : 'Stop voice'} aria-pressed={voice !== 'off' && voice !== 'error'}>
           {voice === 'off' || voice === 'error' ? '🎙️' : '■'}
         </button>
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type your question…" disabled={busy} />
+        <input ref={inputRef} aria-label="Your question for Saathi" value={text} onChange={(e) => setText(e.target.value)} placeholder="Type your question…" disabled={busy} />
         <button className="s-send" disabled={busy || !text.trim()}>Ask</button>
       </form>
     </div>
