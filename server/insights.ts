@@ -168,32 +168,22 @@ async function writeSql(question: string, priorError?: { sql: string; error: str
   });
 }
 
-insightsRouter.post('/host/:slug/ask', async (req, res) => {
-  const db = await getDb();
-  const rows = await db.query<{ id: string; host_token: string; draft: WeddingDraft }>(
-    'SELECT id, host_token, draft FROM weddings WHERE slug = $1',
-    [req.params.slug],
-  );
-  const w = rows[0];
-  if (!w) throw new HttpError(404, 'Wedding not found.');
-  if (typeof req.body?.t !== 'string' || req.body.t !== w.host_token) throw new HttpError(403, 'Only the host can do that.');
-  const question = typeof req.body?.question === 'string' ? req.body.question.trim().slice(0, 300) : '';
-  if (!question) throw new HttpError(400, 'Ask a question about your guests.');
-  const draft = normalizeDraft(w.draft);
+export interface GuestAnswer {
+  sql: string;
+  /** Set when the question can't be answered from the data (no query ran). */
+  reason?: string;
+  result?: QueryResult;
+}
 
+/** Question → Gemini-written SQL → sandboxed run, with one repair round. */
+export async function queryGuests(db: Db, weddingId: string, draft: WeddingDraft, question: string): Promise<GuestAnswer> {
   let gen = await writeSql(question);
-  if (!gen.sql.trim()) {
-    res.json({ answer: gen.reason || "I can't answer that from the RSVPs yet.", sql: '', columns: [], rows: [], ms: 0, db: db.kind });
-    return;
-  }
-  // Run it; if the static check or Postgres rejects the query, give the model
-  // one repair round with the exact reason.
+  if (!gen.sql.trim()) return { sql: '', reason: gen.reason || "I can't answer that from the RSVPs yet." };
   let sql = '';
-  let result: QueryResult | null = null;
-  for (let round = 0; round < 2 && !result; round++) {
+  for (let round = 0; round < 2; round++) {
     try {
       sql = checkSql(gen.sql);
-      result = await runScoped(db, w.id, draft, sql);
+      return { sql, result: await runScoped(db, weddingId, draft, sql) };
     } catch (e) {
       const repairable = e instanceof SqlRejected || !(e instanceof HttpError);
       if (!repairable || round === 1) {
@@ -201,24 +191,53 @@ insightsRouter.post('/host/:slug/ask', async (req, res) => {
         console.warn('[insights] gave up on', gen.sql, (e as Error).message);
         throw new HttpError(422, 'Could not answer that one. Try rephrasing.');
       }
+      // Show the model the exact reason (static check or Postgres) and let it fix the query.
       gen = await writeSql(question, { sql: gen.sql, error: String((e as Error).message).slice(0, 300) });
-      if (!gen.sql.trim()) throw new HttpError(422, gen.reason || 'Could not answer that one. Try rephrasing.');
+      if (!gen.sql.trim()) return { sql: '', reason: gen.reason || 'Could not answer that one. Try rephrasing.' };
     }
   }
-  if (!result) throw new HttpError(422, 'Could not answer that one. Try rephrasing.');
-  const rowsOut = result;
+  throw new HttpError(422, 'Could not answer that one. Try rephrasing.');
+}
 
+/** One or two sentences answering the question from the rows. */
+export async function summarise(question: string, result: QueryResult): Promise<string> {
   const { answer } = await generateJson<{ answer: string }>({
     system: ANSWER_SYSTEM,
     model: FAST_MODEL,
     input: [
       {
         type: 'text',
-        text: `Question: ${question}\nRows (${result.rows.length}${result.rows.length === 200 ? ', capped' : ''}): ${JSON.stringify(result.rows.slice(0, 60))}`,
+        text: `Question: ${question}
+Rows (${result.rows.length}${result.rows.length === 200 ? ', capped' : ''}): ${JSON.stringify(result.rows.slice(0, 60))}`,
       },
     ],
     schema: { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] },
-  }).catch(() => ({ answer: `${rowsOut.rows.length} result${rowsOut.rows.length === 1 ? '' : 's'}.` }));
+  }).catch(() => ({ answer: `${result.rows.length} result${result.rows.length === 1 ? '' : 's'}.` }));
+  return answer;
+}
 
-  res.json({ answer, sql, ...rowsOut, db: db.kind });
+/** The wedding, if `token` is its host token. */
+export async function hostWeddingRow(slug: string, token: unknown) {
+  const db = await getDb();
+  const rows = await db.query<{ id: string; slug: string; host_token: string; draft: WeddingDraft }>(
+    'SELECT id, slug, host_token, draft FROM weddings WHERE slug = $1',
+    [slug],
+  );
+  const w = rows[0];
+  if (!w) throw new HttpError(404, 'Wedding not found.');
+  if (typeof token !== 'string' || token !== w.host_token) throw new HttpError(403, 'Only the host can do that.');
+  return { ...w, draft: normalizeDraft(w.draft) };
+}
+
+insightsRouter.post('/host/:slug/ask', async (req, res) => {
+  const db = await getDb();
+  const w = await hostWeddingRow(req.params.slug, req.body?.t);
+  const question = typeof req.body?.question === 'string' ? req.body.question.trim().slice(0, 300) : '';
+  if (!question) throw new HttpError(400, 'Ask a question about your guests.');
+  const a = await queryGuests(db, w.id, w.draft, question);
+  if (!a.result) {
+    res.json({ answer: a.reason, sql: '', columns: [], rows: [], ms: 0, db: db.kind });
+    return;
+  }
+  res.json({ answer: await summarise(question, a.result), sql: a.sql, ...a.result, db: db.kind });
 });

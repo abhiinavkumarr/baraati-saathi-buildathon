@@ -52,6 +52,18 @@ CREATE TABLE IF NOT EXISTS questions (
 );
 CREATE INDEX IF NOT EXISTS questions_wedding ON questions (wedding_id, status, created_at DESC);
 
+-- Updates the host publishes from the control room. Shown on the invitation
+-- and known to Saathi.
+CREATE TABLE IF NOT EXISTS announcements (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  wedding_id  uuid NOT NULL REFERENCES weddings(id) ON DELETE CASCADE,
+  text_en     text NOT NULL,
+  text_hi     text,
+  audience    text NOT NULL DEFAULT 'all' CHECK (audience IN ('all', 'coming', 'maybe', 'pickup')),
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS announcements_wedding ON announcements (wedding_id, created_at DESC);
+
 -- "Ask your guest list" runs Gemini-written SQL as this role. It owns nothing
 -- and is granted nothing on the tables above: inside a rolled-back sandbox it
 -- only sees two temporary tables holding ONE wedding's rows (server/insights.ts).
@@ -64,4 +76,4 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
   RAISE NOTICE 'saathi_reader setup: %', SQLERRM;
 END $$;
-REVOKE ALL ON weddings, assets, rsvps, questions FROM saathi_reader;
+REVOKE ALL ON weddings, assets, rsvps, questions, announcements FROM saathi_reader;

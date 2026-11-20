@@ -2,6 +2,7 @@
 // Stateless: the browser sends the current draft and recent turns each time.
 import { Router } from 'express';
 import { loadSkills } from './skills.ts';
+import { recentAnnouncements } from './control.ts';
 import { ALLOWED_MIME, HttpError, generateJson, toInputPart, type Attachment } from './gemini.ts';
 import { draftJsonSchema, missingFields, normalizeDraft, type WeddingDraft } from './wedding.ts';
 import { getDb } from './db.ts';
@@ -118,5 +119,6 @@ intakeRouter.get('/weddings/:slug', async (req, res) => {
   );
   if (!rows[0]) throw new HttpError(404, 'Wedding not found.');
   const { id, ...pub } = rows[0];
-  res.json({ ...pub, draft: normalizeDraft(pub.draft), assets: await latestAssets(id) });
+  const announcements = (await recentAnnouncements(id, 3)).map(({ text_en, text_hi, created_at }) => ({ text_en, text_hi, created_at }));
+  res.json({ ...pub, draft: normalizeDraft(pub.draft), assets: await latestAssets(id), announcements });
 });

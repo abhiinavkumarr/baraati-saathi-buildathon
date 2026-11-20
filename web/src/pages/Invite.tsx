@@ -8,6 +8,7 @@ export interface PublicWedding {
   slug: string;
   draft: WeddingDraft;
   assets: { card_art?: string; couple_art?: string; music?: string };
+  announcements?: { text_en: string; text_hi: string | null; created_at: string }[];
 }
 
 export function useWedding(slug: string, pollMs = 0) {
@@ -123,6 +124,8 @@ export function Invite({ slug }: { slug: string }) {
           <img src={`/api/assets/${w.assets.couple_art}`} alt={`${d.partner1_name} and ${d.partner2_name}`} />
         </section>
       )}
+
+      {w.announcements?.[0] && <Update a={w.announcements[0]} />}
 
       <section className="schedule">
         <h2 className="section-title reveal">The celebrations</h2>
@@ -255,3 +258,24 @@ function RevealOnScroll() {
   }, []);
   return null;
 }
+
+/** The family's latest update, published from the host's control room. */
+function Update({ a }: { a: { text_en: string; text_hi: string | null; created_at: string } }) {
+  const [hi, setHi] = useState(false);
+  const when = new Date(a.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  return (
+    <section className="update reveal" aria-labelledby="update-h">
+      <div className="update-card">
+        <div className="update-top">
+          <span id="update-h"><span aria-hidden>📣 </span>Update from the family</span>
+          {a.text_hi && (
+            <button onClick={() => setHi(!hi)} aria-label={hi ? 'Show in English' : 'हिंदी में देखें'}>{hi ? 'EN' : 'हिं'}</button>
+          )}
+        </div>
+        <p lang={hi ? 'hi' : undefined}>{hi && a.text_hi ? a.text_hi : a.text_en}</p>
+        <small>{when}</small>
+      </div>
+    </section>
+  );
+}
+

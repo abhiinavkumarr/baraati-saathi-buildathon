@@ -8,6 +8,7 @@ import { getDb } from './db.ts';
 import { loadSkills } from './skills.ts';
 import { HttpError, MODELS, TEXT_MODELS, ai, withFallback } from './gemini.ts';
 import { normalizeDraft, type WeddingDraft } from './wedding.ts';
+import { recentAnnouncements } from './control.ts';
 
 export const saathiRouter = Router();
 
@@ -126,7 +127,7 @@ export async function runTool(ctx: Ctx, name: string, args: Record<string, unkno
   }
 }
 
-function systemFor(ctx: Ctx, mode: 'text' | 'voice'): string {
+function systemFor(ctx: Ctx, mode: 'text' | 'voice', updates: string[] = []): string {
   const d = ctx.draft;
   return [
     loadSkills('saathi-concierge', 'guest-data-guardrails'),
@@ -135,6 +136,7 @@ function systemFor(ctx: Ctx, mode: 'text' | 'voice'): string {
     // Pre-fetched so most answers need a single model call. This is exactly
     // what get_wedding_details returns; it holds only what the host published.
     `Result of get_wedding_details (already fetched, no need to call it again):\n${JSON.stringify(publicDetails(d))}`,
+    updates.length ? `Latest updates from the family (newest first; mention them when relevant): ${updates.join(' | ')}` : '',
     'Match the guest\'s script as well as language: Roman-script Hinglish gets a Roman-script Hinglish reply; Devanagari gets Devanagari.',
     mode === 'voice'
       ? 'You are speaking aloud. Keep each answer to one or two short sentences. Say times the way people speak them.'
@@ -155,7 +157,7 @@ saathiRouter.post('/saathi/:slug/chat', async (req, res) => {
     .join('\n');
 
   const tools = TOOL_DEFS.map((t) => ({ type: 'function', ...t }));
-  const system = systemFor(ctx, 'text');
+  const system = systemFor(ctx, 'text', (await recentAnnouncements(ctx.weddingId, 3)).map((a) => a.text_en));
   const used: string[] = [];
   let actions: string[] = [];
 
@@ -201,7 +203,7 @@ saathiRouter.post('/saathi/:slug/live-token', async (req, res) => {
   const ctx = await context(req.params.slug, req.body?.guest_token);
   const config = {
     responseModalities: ['AUDIO'],
-    systemInstruction: systemFor(ctx, 'voice'),
+    systemInstruction: systemFor(ctx, 'voice', (await recentAnnouncements(ctx.weddingId, 3)).map((a) => a.text_en)),
     tools: [{ functionDeclarations: TOOL_DEFS }],
     inputAudioTranscription: {},
     outputAudioTranscription: {},

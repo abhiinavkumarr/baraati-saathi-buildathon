@@ -1,5 +1,5 @@
 // Seed the demo wedding on a running server (local or Cloud Run): a complete
-// Riya & Kabir wedding with info cards, AI artwork, music, and a few RSVPs.
+// Riya & Kabir wedding with info cards, AI artwork, music, 18 RSVPs and two open questions.
 // Prints the Studio, invite and dashboard links. Takes ~40 s (art + music).
 // Usage: node --import tsx scripts/seed-demo.ts https://<service>.run.app
 const base = (process.argv[2] ?? 'http://localhost:8080').replace(/\/$/, '');
@@ -46,11 +46,39 @@ await Promise.all([
   call('POST', `/api/weddings/${slug}/art`, { host_token, kind: 'card_art' }),
   call('POST', `/api/weddings/${slug}/music`, { host_token }),
 ]);
-for (const r of [
-  { name: 'Nani ji', status: 'yes', party_size: 3, note: 'Main apni beti aur pote ke saath aa rahi hoon. 12 tareekh ko shaam 5:40 baje Udaipur airport pahunchenge, pickup chahiye. Jain khana please.' },
-  { name: 'Aditya', status: 'maybe', party_size: 2, note: 'Driving down from Jaipur with my wife' },
-  { name: 'Meera Aunty', status: 'yes', party_size: 4, note: 'Family of four, two kids aged 6 and 9. Train reaches Udaipur City 7 am on the 12th.' },
-]) await call('POST', `/api/weddings/${slug}/rsvp`, r);
+// A realistic guest list: arrivals over three days, airport and station
+// pickups, food needs, children, a few maybes and regrets. No phone numbers,
+// so no real person is ever messaged from the demo.
+const guests: [string, 'yes' | 'maybe' | 'no', number, string][] = [
+  ['Nani ji', 'yes', 3, 'Main apni beti aur pote ke saath aa rahi hoon. 12 tareekh ko shaam 5:40 baje Udaipur airport pahunchenge, pickup chahiye. Jain khana please.'],
+  ['Meera Aunty', 'yes', 4, 'Family of four, two kids aged 6 and 9. Train reaches Udaipur City station 7 am on the 12th, need a pickup.'],
+  ['Aditya', 'maybe', 2, 'Driving down from Jaipur with my wife'],
+  ['Priya & Karan', 'yes', 2, 'Landing 11 Feb 1:30 pm, IndiGo from Mumbai. Pickup would be lovely. Karan has a nut allergy.'],
+  ['Sharma Uncle', 'yes', 2, 'Hum dono 11 ko dopahar 2 baje airport aayenge. Pickup chahiye. Shakahari khana.'],
+  ['Rohan', 'yes', 1, 'Flight lands 11 Feb 2:15 pm from Delhi, will need a cab to the hotel'],
+  ['Kavya', 'maybe', 1, 'Trying to get leave, will confirm by next week'],
+  ['Gupta family', 'yes', 5, '3 adults and 2 kids (4 and 7). Arriving by car from Ahmedabad on the 11th evening. Jain food for my mother.'],
+  ['Ananya', 'yes', 1, 'Coming solo! Landing 12 Feb 10 am. Vegan please.'],
+  ['Vikram Bhaiya', 'yes', 3, 'With wife and daughter (5). Flight lands 12 Feb 5:50 pm, pickup chahiye'],
+  ['Dadi ji', 'yes', 2, 'Main aur mera beta. 11 tareekh subah 9 baje Udaipur City station, pickup please. Jain.'],
+  ['Neha', 'no', 1, 'So sorry, exams that week. Sending all my love!'],
+  ['Arjun', 'maybe', 2, 'Might come for the Sangeet and Pheras only'],
+  ['Sethi cousins', 'yes', 4, 'Four of us driving from Delhi, reaching 11 Feb night. Vegetarian x2.'],
+  ['Mrs. Kapoor', 'yes', 2, 'Arriving 12 Feb 11:30 am by flight with my husband. Need wheelchair assistance at the airport and a pickup.'],
+  ['Farhan', 'no', 1, 'Will be abroad, many congratulations!'],
+  ['Simran', 'yes', 2, 'With my husband, landing 12 Feb 5:30 pm from Bangalore. Pickup please.'],
+  ['Tanvi', 'yes', 1, 'Train to Udaipur City 12th morning 6:30'],
+];
+for (const [name, status, party_size, note] of guests) {
+  await call('POST', `/api/weddings/${slug}/rsvp`, { name, status, party_size, note });
+}
+
+// Two questions the schedule can't answer, so the host's inbox isn't empty.
+for (const q of ['Can I bring my dog to the Mehendi?', 'Will there be a mehendi artist for guests too?']) {
+  await call('POST', `/api/saathi/${slug}/chat`, { message: q, history: [] });
+}
+console.log('Waiting for Gemini to read the RSVP notes…');
+await new Promise((r) => setTimeout(r, 25000));
 
 console.log(`\nStudio:    ${base}/studio/${slug}?t=${host_token}`);
 console.log(`Invite:    ${base}/i/${slug}`);

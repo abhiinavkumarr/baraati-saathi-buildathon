@@ -51,7 +51,7 @@ test('slugs are readable and unguessable; tokens are long', () => {
 
 test('every Agent Skill parses and its folder matches its name', () => {
   const menu = skillMenu();
-  assert.deepEqual(menu.map((s) => s.name).sort(), ['card-designer', 'guest-data-guardrails', 'saathi-concierge', 'wedding-intake']);
+  assert.deepEqual(menu.map((s) => s.name).sort(), ['card-designer', 'guest-data-guardrails', 'host-control-room', 'saathi-concierge', 'wedding-intake']);
   for (const s of menu) assert.ok(s.description.length > 40, `${s.name} needs a real description`);
   assert.ok(getSkill('wedding-intake').body.includes('Never invent'));
   assert.match(loadSkills('saathi-concierge', 'guest-data-guardrails'), /# Skill: saathi-concierge[\s\S]+# Skill: guest-data-guardrails/);
