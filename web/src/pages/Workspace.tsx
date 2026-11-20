@@ -170,27 +170,30 @@ export function Workspace({
 
   return (
     <div className="ws">
-      <header className="ws-top">
+      <header className="topbar">
         <div className="ws-top-inner">
           <div className="ws-brand">
-            <span className="wordmark"><b>B</b>ARAATI</span> <span className="tag">Saathi</span>
+            <div className="brand">
+              <span className="wordmark">Baraati</span> <span className="tag">Saathi</span>
+            </div>
             {active && (
-              <span className="ws-wedding-pill" title={active.slug}>
+              <span className="chip" title={active.slug}>
+                <span className="dot" aria-hidden />
                 {coupleTitle}
               </span>
             )}
           </div>
           <div className="ws-user">
-            <button type="button" className="ws-link-btn" onClick={() => setConnectOpen((v) => !v)}>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setConnectOpen((v) => !v)}>
               {active ? 'Switch wedding' : 'Connect host link'}
             </button>
             {active && (
-              <a className="ws-link-btn" href={`/i/${active.slug}`} target="_blank" rel="noreferrer">
+              <a className="btn btn-ghost btn-sm" href={`/i/${active.slug}`} target="_blank" rel="noreferrer">
                 Guest view ↗
               </a>
             )}
             <span className="ws-user-pill">{session.name} · {session.role}</span>
-            <button type="button" className="ws-signout" onClick={onLogout}>Sign out</button>
+            <button type="button" className="btn btn-outline btn-sm" onClick={onLogout}>Sign out</button>
           </div>
         </div>
 
@@ -203,28 +206,29 @@ export function Workspace({
               value={connectUrl}
               onChange={(e) => setConnectUrl(e.target.value)}
             />
-            <button type="submit" className="pill solid">Connect</button>
-            <button type="button" className="pill" onClick={() => { setTab('invitations'); setInviteMode('create'); setConnectOpen(false); }}>
+            <button type="submit" className="btn btn-primary btn-sm">Connect</button>
+            <button type="button" className="btn btn-outline btn-sm" onClick={() => { setTab('invitations'); setInviteMode('create'); setConnectOpen(false); }}>
               + New wedding
             </button>
             {connectErr && <span className="error">{connectErr}</span>}
           </form>
         )}
 
-        <nav className="ws-tabs" role="tablist" aria-label="Wedding planning tools">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              role="tab"
-              type="button"
-              aria-selected={tab === t.id}
-              className={`ws-tab ${tab === t.id ? 'on' : ''}`}
-              onClick={() => setTab(t.id)}
-            >
-              <span aria-hidden>{t.icon}</span> {t.label}
-            </button>
-          ))}
-        </nav>
+        <div className="ws-tabs-wrap">
+          <nav className="tabs" role="tablist" aria-label="Wedding planning tools">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                role="tab"
+                type="button"
+                aria-selected={tab === t.id}
+                onClick={() => setTab(t.id)}
+              >
+                <span aria-hidden>{t.icon}</span> {t.label}
+              </button>
+            ))}
+          </nav>
+        </div>
       </header>
 
       <div className="ws-body" role="tabpanel">
@@ -249,15 +253,15 @@ export function Workspace({
           <section className="ws-section">
             <div className="ws-subbar">
               <div>
-                <h1 className="display ws-h1">Invitations &amp; Card Studio</h1>
+                <h1 className="h2 ws-h1">Invitations &amp; <span className="serif">Card Studio</span></h1>
                 <p className="muted">Create a wedding from a card photo, PDF, voice note or chat — then generate art, music and send invites.</p>
               </div>
               {active && (
-                <div className="ws-toggle" role="group" aria-label="Invitation view">
-                  <button type="button" className={inviteMode === 'studio' ? 'on' : ''} onClick={() => setInviteMode('studio')}>
+                <div className="tabs" role="group" aria-label="Invitation view">
+                  <button type="button" role="tab" aria-selected={inviteMode === 'studio'} onClick={() => setInviteMode('studio')}>
                     Card Studio &amp; Send
                   </button>
-                  <button type="button" className={inviteMode === 'create' ? 'on' : ''} onClick={() => setInviteMode('create')}>
+                  <button type="button" role="tab" aria-selected={inviteMode === 'create'} onClick={() => setInviteMode('create')}>
                     + Create New Wedding
                   </button>
                 </div>
@@ -327,18 +331,19 @@ export function Workspace({
 
 function EmptyWedding({ busy, onCreate, onSample }: { busy: boolean; onCreate: () => void; onSample: () => void }) {
   return (
-    <section className="ws-empty">
+    <section className="card ws-empty">
+      <div className="ws-empty-icon" aria-hidden>✦</div>
       <p className="eyebrow">Get started</p>
-      <h1 className="display">Set up your wedding workspace</h1>
+      <h1 className="h2">Set up your wedding <span className="serif">workspace</span></h1>
       <p className="muted">
         Upload an existing wedding card, speak or chat to build your ceremonies, or jump in with a
         ready-to-explore sample wedding.
       </p>
       <div className="ws-empty-actions">
-        <button type="button" className="login-primary" onClick={onCreate}>
+        <button type="button" className="btn btn-cta login-full" onClick={onCreate}>
           Create wedding with AI (Card / Voice / Chat)
         </button>
-        <button type="button" className="login-secondary" disabled={busy} onClick={onSample}>
+        <button type="button" className="btn btn-outline login-full" disabled={busy} onClick={onSample}>
           {busy ? 'Creating sample workspace…' : 'Start with Sample Wedding (Meera & Rohan)'}
         </button>
       </div>
@@ -378,17 +383,17 @@ function GuestsTab({ slug, snapshot, onAskAi }: { slug: string; snapshot: HostSn
     <section className="ws-section">
       <div className="ws-subbar">
         <div>
-          <h1 className="display ws-h1">Guests &amp; RSVPs</h1>
+          <h1 className="h2 ws-h1">Guests &amp; <span className="serif">RSVPs</span></h1>
           <p className="muted">Track responses, spot ticket mismatches, and send personalised “naam likhe huve” invite links.</p>
         </div>
-        <button type="button" className="pill solid" onClick={onAskAi}>Ask Saathi AI about guests →</button>
+        <button type="button" className="btn btn-primary btn-sm" onClick={onAskAi}>Ask Saathi AI about guests →</button>
       </div>
 
       <div className="ws-two-col">
-        <div className="cr-card">
+        <div className="card">
           <div className="ws-filter-bar" role="group" aria-label="Filter guests">
             {([['all', 'All'], ['yes', 'Coming'], ['maybe', 'Maybe'], ['no', "Can't come"], ['pickup', 'Needs pickup']] as const).map(([k, label]) => (
-              <button key={k} type="button" className={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>{label}</button>
+              <button key={k} type="button" className={`chip ${filter === k ? 'on' : ''}`} aria-pressed={filter === k} onClick={() => setFilter(k)}>{label}</button>
             ))}
           </div>
           {filtered.length === 0 ? (
@@ -399,14 +404,14 @@ function GuestsTab({ slug, snapshot, onAskAi }: { slug: string; snapshot: HostSn
                 <li key={r.id} className={`rsvp-row ${r.status}`}>
                   <b>{r.name}</b> <span className="muted small">{r.phone_masked}</span>
                   <div className="badges">
-                    <span className={`badge ${r.status}`}>{r.status === 'yes' ? 'Coming' : r.status === 'maybe' ? 'Maybe' : "Can't come"}</span>
+                    <span className={`badge ${r.status === 'yes' ? 'ok' : r.status === 'maybe' ? 'warn' : 'bad'}`}>{r.status === 'yes' ? 'Coming' : r.status === 'maybe' ? 'Maybe' : "Can't come"}</span>
                     {r.status !== 'no' && <span className="badge">{r.party_size} {r.party_size === 1 ? 'person' : 'people'}</span>}
-                    {r.extracted?.flight_or_train && <span className="badge ai">✈️ {r.extracted.flight_or_train}</span>}
+                    {r.extracted?.flight_or_train && <span className="badge ai">✦ {r.extracted.flight_or_train}</span>}
                     {r.extracted?.ticket_passengers && r.extracted.ticket_passengers > 0 && r.extracted.ticket_passengers !== r.party_size ? (
                       <span className="badge warn">Ticket: {r.extracted.ticket_passengers} vs RSVP: {r.party_size}</span>
                     ) : null}
-                    {r.extracted?.needs_pickup && <span className="badge ai">Pickup{r.extracted.arrival_point ? ` · ${r.extracted.arrival_point}` : ''}</span>}
-                    {r.extracted?.dietary && <span className="badge ai">{r.extracted.dietary}</span>}
+                    {r.extracted?.needs_pickup && <span className="badge ai">✦ Pickup{r.extracted.arrival_point ? ` · ${r.extracted.arrival_point}` : ''}</span>}
+                    {r.extracted?.dietary && <span className="badge ai">✦ {r.extracted.dietary}</span>}
                   </div>
                   {r.note && <p className="note">“{r.note}”</p>}
                 </li>
@@ -415,8 +420,9 @@ function GuestsTab({ slug, snapshot, onAskAi }: { slug: string; snapshot: HostSn
           )}
         </div>
 
-        <div className="cr-card">
-          <h2>Personalised Invite Links</h2>
+        <div className="card">
+          <p className="eyebrow">Share personally</p>
+          <h2 className="h3">Personalised Invite Links</h2>
           <p className="muted small">Paste family or friend names (one per line or comma-separated) to create personal greeting links.</p>
           <form onSubmit={makePersonalLinks} className="ws-stack">
             <textarea
@@ -426,7 +432,7 @@ function GuestsTab({ slug, snapshot, onAskAi }: { slug: string; snapshot: HostSn
               value={pasteNames}
               onChange={(e) => setPasteNames(e.target.value)}
             />
-            <button type="submit" className="pill solid" disabled={!pasteNames.trim()}>Generate personal links</button>
+            <button type="submit" className="btn btn-primary btn-sm" disabled={!pasteNames.trim()}>Generate personal links</button>
           </form>
           {links.length > 0 && (
             <ul className="ws-link-list">
@@ -434,8 +440,8 @@ function GuestsTab({ slug, snapshot, onAskAi }: { slug: string; snapshot: HostSn
                 <li key={l.name}>
                   <span><b>{l.name}</b></span>
                   <div className="ws-link-actions">
-                    <a href={l.url} target="_blank" rel="noreferrer">Open ↗</a>
-                    <a href={l.wa} target="_blank" rel="noreferrer" className="wa">WhatsApp ↗</a>
+                    <a className="btn btn-ghost btn-sm" href={l.url} target="_blank" rel="noreferrer">Open ↗</a>
+                    <a className="btn btn-outline btn-sm wa" href={l.wa} target="_blank" rel="noreferrer">WhatsApp ↗</a>
                   </div>
                 </li>
               ))}
@@ -453,16 +459,16 @@ function CeremoniesTab({ draft, onEditWithAi }: { draft: WeddingDraft; onEditWit
     <section className="ws-section">
       <div className="ws-subbar">
         <div>
-          <h1 className="display ws-h1">Ceremonies &amp; Schedule</h1>
+          <h1 className="h2 ws-h1">Ceremonies &amp; <span className="serif">Schedule</span></h1>
           <p className="muted">{draft.events.length} ceremonies planned{draft.city ? ` in ${draft.city}` : ''}. Use the AI Control Room to reschedule and notify guests.</p>
         </div>
-        <button type="button" className="pill solid" onClick={onEditWithAi}>Edit schedule with Saathi →</button>
+        <button type="button" className="btn btn-primary btn-sm" onClick={onEditWithAi}>Edit schedule with Saathi →</button>
       </div>
       <div className="ws-cards">
         {sorted.map((ev, i) => (
-          <article key={ev.name + i} className="cr-card ws-ev-card">
+          <article key={ev.name + i} className="card card-hover ws-ev-card">
             <p className="eyebrow">{ev.date ? fmtDate(ev.date, { weekday: 'short', day: 'numeric', month: 'long' }) : 'Date TBD'}{ev.start_time ? ` · ${fmtTime(ev.start_time)}` : ''}</p>
-            <h3>{ev.name}</h3>
+            <h3 className="h3">{ev.name}</h3>
             {ev.venue_name && <p><b>{ev.venue_name}</b>{ev.venue_address ? ` — ${ev.venue_address}` : ''}</p>}
             {ev.dress_code && <p className="muted small">Dress code: {ev.dress_code}</p>}
             {ev.notes && <p className="muted small">{ev.notes}</p>}
@@ -492,17 +498,18 @@ function LogisticsTab({ slug, snapshot, onOpenAi }: { slug: string; snapshot: Ho
     <section className="ws-section">
       <div className="ws-subbar">
         <div>
-          <h1 className="display ws-h1">Logistics, Travel &amp; Catering</h1>
+          <h1 className="h2 ws-h1">Logistics, Travel &amp; <span className="serif">Catering</span></h1>
           <p className="muted">Automatically populated from guest RSVP notes and uploaded flight/train tickets.</p>
         </div>
         <div className="ws-link-actions">
-          <a className="pill" href={`/i/${slug}`} target="_blank" rel="noreferrer">Test ticket upload as guest ↗</a>
-          <button type="button" className="pill solid" onClick={onOpenAi}>Plan pickups with Saathi →</button>
+          <a className="btn btn-outline btn-sm" href={`/i/${slug}`} target="_blank" rel="noreferrer">Test ticket upload as guest ↗</a>
+          <button type="button" className="btn btn-primary btn-sm" onClick={onOpenAi}>Plan pickups with Saathi →</button>
         </div>
       </div>
 
-      <div className="cr-card" style={{ marginBottom: 18 }}>
-        <h2>Arrivals &amp; Airport/Station Pickups ({arrivals.length})</h2>
+      <div className="card ws-card-gap">
+        <p className="eyebrow">Hospitality</p>
+        <h2 className="h3">Arrivals &amp; Airport/Station Pickups ({arrivals.length})</h2>
         {arrivals.length === 0 ? (
           <p className="muted">No arrival or ticket details yet. Guests can upload flight/train tickets or mention arrival times when they RSVP.</p>
         ) : (
@@ -522,7 +529,7 @@ function LogisticsTab({ slug, snapshot, onOpenAi }: { slug: string; snapshot: Ho
                 {arrivals.map((r) => (
                   <tr key={r.id}>
                     <td><b>{r.name}</b></td>
-                    <td>
+                    <td className="num">
                       {r.party_size}
                       {r.extracted?.ticket_passengers && r.extracted.ticket_passengers !== r.party_size
                         ? ` (ticket: ${r.extracted.ticket_passengers})`
@@ -534,7 +541,7 @@ function LogisticsTab({ slug, snapshot, onOpenAi }: { slug: string; snapshot: Ho
                     </td>
                     <td>{r.extracted?.flight_or_train || r.extracted?.arrival_mode || '—'}</td>
                     <td>{r.extracted?.arrival_point || '—'}</td>
-                    <td>{r.extracted?.needs_pickup ? 'Needed' : 'No'}</td>
+                    <td>{r.extracted?.needs_pickup ? <span className="badge ai">✦ Needed</span> : 'No'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -543,8 +550,9 @@ function LogisticsTab({ slug, snapshot, onOpenAi }: { slug: string; snapshot: Ho
         )}
       </div>
 
-      <div className="cr-card">
-        <h2>Dietary &amp; Catering Notes ({dietary.length} households)</h2>
+      <div className="card">
+        <p className="eyebrow">Catering</p>
+        <h2 className="h3">Dietary &amp; Catering Notes ({dietary.length} households)</h2>
         {dietary.length === 0 ? (
           <p className="muted">No special dietary notes recorded yet.</p>
         ) : (
@@ -552,7 +560,7 @@ function LogisticsTab({ slug, snapshot, onOpenAi }: { slug: string; snapshot: Ho
             {dietary.map((r) => (
               <li key={r.id}>
                 <span><b>{r.name}</b> ({r.party_size} {r.party_size === 1 ? 'person' : 'people'})</span>
-                <span className="badge ai">{r.extracted?.dietary}</span>
+                <span className="badge ai">✦ {r.extracted?.dietary}</span>
               </li>
             ))}
           </ul>
@@ -613,14 +621,15 @@ function PlanningTab({ storageKey }: { storageKey: string }) {
     <section className="ws-section">
       <div className="ws-subbar">
         <div>
-          <h1 className="display ws-h1">Checklist &amp; Budget</h1>
+          <h1 className="h2 ws-h1">Checklist &amp; <span className="serif">Budget</span></h1>
           <p className="muted">Keep family tasks and vendor payments organised in one workspace.</p>
         </div>
       </div>
 
       <div className="ws-two-col">
-        <div className="cr-card">
-          <h2>Wedding Checklist <span className="count">{doneCount}/{tasks.length}</span></h2>
+        <div className="card">
+          <p className="eyebrow">Tasks</p>
+          <h2 className="h3">Wedding Checklist <span className="badge">{doneCount}/{tasks.length}</span></h2>
           <form onSubmit={addTask} className="ws-inline-form">
             <input
               type="text"
@@ -629,7 +638,7 @@ function PlanningTab({ storageKey }: { storageKey: string }) {
               value={newTask}
               onChange={(e) => setNewTask(e.target.value)}
             />
-            <button type="submit" className="pill solid">Add</button>
+            <button type="submit" className="btn btn-primary btn-sm">Add</button>
           </form>
           <ul className="ws-tasks">
             {tasks.map((t) => (
@@ -648,12 +657,13 @@ function PlanningTab({ storageKey }: { storageKey: string }) {
           </ul>
         </div>
 
-        <div className="cr-card">
-          <h2>Budget Tracker</h2>
+        <div className="card">
+          <p className="eyebrow">Money</p>
+          <h2 className="h3">Budget Tracker</h2>
           <div className="ws-budget-sum">
-            <div><small>Allocated</small><b>{fmtInr(totalAlloc)}</b></div>
-            <div><small>Paid</small><b>{fmtInr(totalPaid)}</b></div>
-            <div><small>Remaining</small><b>{fmtInr(Math.max(0, totalAlloc - totalPaid))}</b></div>
+            <div><small>Allocated</small><b className="num">{fmtInr(totalAlloc)}</b></div>
+            <div><small>Paid</small><b className="num">{fmtInr(totalPaid)}</b></div>
+            <div><small>Remaining</small><b className="num">{fmtInr(Math.max(0, totalAlloc - totalPaid))}</b></div>
           </div>
           <ul className="ws-budget-list">
             {budget.map((b) => {
@@ -662,7 +672,7 @@ function PlanningTab({ storageKey }: { storageKey: string }) {
                 <li key={b.id}>
                   <div className="ws-budget-row">
                     <b>{b.category}</b>
-                    <span>{fmtInr(b.paid)} / {fmtInr(b.allocated)}</span>
+                    <span className="num">{fmtInr(b.paid)} / {fmtInr(b.allocated)}</span>
                   </div>
                   <div className="ws-bar"><span style={{ width: `${pct}%` }} /></div>
                   <div className="ws-budget-edit">
@@ -687,7 +697,7 @@ function PlanningTab({ storageKey }: { storageKey: string }) {
           <form onSubmit={addBudget} className="ws-inline-form">
             <input type="text" aria-label="Category" placeholder="Category (e.g. DJ / Sangeet)" value={newCat} onChange={(e) => setNewCat(e.target.value)} />
             <input type="number" step="0.5" min="0.5" aria-label="Budget in Lakhs" placeholder="₹ Lakhs" value={newAlloc} onChange={(e) => setNewAlloc(e.target.value)} style={{ maxWidth: 100 }} />
-            <button type="submit" className="pill solid">Add</button>
+            <button type="submit" className="btn btn-primary btn-sm">Add</button>
           </form>
         </div>
       </div>
