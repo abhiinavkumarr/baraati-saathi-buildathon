@@ -9,8 +9,8 @@ Android and the web. This repository is a new, separate product: it contains
 no Baraati app code.
 
 **Live:** https://baraati-saathi-570792946314.asia-south1.run.app
-(demo invitation: [/i/riya-kabir-b4fc738a](https://baraati-saathi-570792946314.asia-south1.run.app/i/riya-kabir-b4fc738a);
-host links are in the submission form, since they carry the host's secret token).
+(demo invitation: [/i/riya-kabir-6abb94dc](https://baraati-saathi-570792946314.asia-south1.run.app/i/riya-kabir-6abb94dc);
+tap **Try the sample wedding** on the landing page to explore the full wedding planner workspace).
 
 ---
 
@@ -36,7 +36,7 @@ phone tree. Running Baraati, we kept running into the same three problems:
 | **1. Card → wedding** | Host | Upload a photo or PDF of the card, or describe the wedding by chat or a voice note, in English, Hindi or Hinglish. Gemini reads every ceremony, date and venue, suggests ceremonies from the family's tradition, and asks only for what's missing. No card? Saathi builds one from the conversation. |
 | **2. An invitation that moves** | Host → guests | Nano Banana paints card art in a regional style (Rajasthani, South Indian temple, Bengali alpana, Punjabi phulkari…), **a scene for every ceremony** (turmeric and marigolds for Haldi, henna for Mehendi, the sacred fire for the Pheras) and, optionally, a couple illustration from a photo; Lyria composes the music. Guests open one link in any browser, no install: doors swing open on the art, petals fall, a countdown runs, each ceremony has directions and *Add to calendar*. A personal link greets the guest by name. They RSVP in their own words ("coming with mom, landing 6 pm on the 12th, need pickup") and Gemini turns the note into arrival time, pickup, children and dietary needs. |
 | **3. Saathi, by voice** | Guests | Guests ask by text or by voice (Gemini Live) in Hindi or English and get answers from this wedding's own data. Saathi can change the guest's own RSVP after confirming, and sends anything it can't answer to the host. When the host replies, the answer becomes an info card every guest's Saathi now knows. |
-| **4. The host's AI control room** | Host | The host types or **speaks** in Hindi or English: *"Haldi ko 12 baje kar do aur sabko bata do"*. A Gemini agent with function calling checks the guest list (AlloyDB), then **proposes** a schedule change and an English + Hindi announcement as cards. Nothing changes until the host taps Publish; then the update appears on the invitation, Saathi knows it, and the host gets a personalised WhatsApp message per guest. Questions like *"Kitne log Jain khana khayenge?"* are answered by Gemini-written SQL in a locked-down AlloyDB sandbox, with the table and query shown. A morning **briefing** spots what matters (three guests landing within 20 minutes can share one cab), next to live charts of arrivals and food needs. |
+| **4. The full wedding planner & Ask Saathi** | Host | After signing in with phone or email (or tapping *Try the sample wedding*), every wedding opens into three sections inside one shell: **Your Wedding** (guests with AI list import, vendors with quote PDF/photo reader, INR budget & payment schedule, urgency-grouped tasks with AI checklist, autosaved Excel-like sheets, and day-by-day run sheet), **Baraati App** (live invitation preview & personal links, RSVPs & dietary/party bars, ceremony editor, info cards & guest questions inbox, bilingual announcements, hotel rooming, and airport pickup cab pairing), and **AI Studio** (card/ceremony art, couple illustration, 3-style monogram logos, WhatsApp message writer, Lyria song & 9:16 video teaser). A persistent **Ask Saathi** drawer on every page runs a 12-tool Gemini agent that queries the sandboxed AlloyDB tables (`guests`, `events`, `tasks`, `vendors`, `payments`) and *proposes* changes as confirmation cards. |
 
 ## Architecture
 
@@ -81,10 +81,12 @@ flowchart LR
   Agent Skill (`.agents/skills/`), the
   same format Antigravity reads. The server lists skills by name and
   description and loads a skill's full body only when an agent needs it.
-* **The host's agent proposes; the host decides.** The control-room agent's
+* **The host's agent proposes; the host decides.** The Ask Saathi agent's
   tools (`query_guests`, `propose_event_change`, `propose_announcement`,
-  `propose_info_card`, `propose_question_answer`) only create cards. A
-  separate, host-authenticated `/apply` call makes the change.
+  `propose_info_card`, `propose_question_answer`, `propose_reminders`,
+  `propose_tasks`, `propose_vendor`, `propose_payment`, `propose_budget_line`,
+  `propose_rooming`, `propose_pickups`) only create proposal cards. A
+  separate, host-authenticated `POST /api/host/:slug/apply` call makes the change.
 * **Tools run on the server, always.** Saathi's four tools
   (`get_wedding_details`, `get_my_rsvp`, `update_rsvp`, `ask_host`) take the
   wedding and guest from the request, never from the model's arguments. Voice
@@ -110,7 +112,7 @@ flowchart LR
 | **AlloyDB for PostgreSQL** | System of record (weddings, RSVPs, questions, media) and the engine for **Ask your guest list**, reached through the Auth Proxy bundled in the container. |
 | **Cloud Run** | Hosting: one container with the API, the web app and the Auth Proxy. |
 | **Secret Manager** | Gemini API key and database password; nothing secret in env files or images. |
-| **Agent Skills** | `wedding-intake`, `card-designer`, `saathi-concierge`, `host-control-room`, `guest-data-guardrails`. |
+| **Agent Skills** | `wedding-intake`, `card-designer`, `saathi-concierge`, `host-control-room`, `wedding-planner`, `guest-data-guardrails`. |
 | **Antigravity** | Development IDE, with the Google Cloud Data Agent Kit plugin. |
 
 ## Ask your guest list: model-written SQL, safely
@@ -126,9 +128,10 @@ Letting a model write SQL over a guest list needs more than a prompt. In
 3. **A role with no privileges.** `SET LOCAL ROLE saathi_reader`, a role
    granted nothing on any real table. If the role switch fails, the query is
    not run.
-4. **Only this wedding's rows.** Before switching role, the server copies the
-   wedding's RSVPs into a temporary `guests` table (phone numbers left out) and
-   its schedule into `events`. The model only ever knows those two tables.
+4. **Only this wedding's rows.** Before switching role, the server copies this
+   wedding's `guests` (phone numbers left out), `events`, `tasks`, `vendors`
+   (phone & contact name left out) and `payments` into temporary tables. The
+   model only ever knows those five temp tables.
 5. **Limits.** A 4-second statement timeout and a 200-row cap.
 
 `tests/insights.test.ts` checks this: another wedding's guests are never
@@ -161,15 +164,17 @@ Built for grandparents as much as for the couple:
 ## Tests and CI
 
 ```bash
-npm test          # 27 tests on in-memory PGlite; no API key needed
+npm test          # 40 tests on in-memory PGlite; no API key needed
 npm run typecheck
 ```
 
-* `tests/insights.test.ts`: sandbox isolation, rollback, role, SQL static check.
+* `tests/auth.test.ts`: contact normalisation, multi-format user merging, per-user wedding scoping, private-wedding passcode checks.
+* `tests/planning.test.ts`: `computeBudget`, task `urgency` buckets, cross-wedding CRUD isolation, sample seed, runsheet scoping & visibility.
+* `tests/import.test.ts`: `saathi-import-v1` mapping, zero-phone rule, owner-only access, idempotency.
+* `tests/insights.test.ts`: sandbox isolation across all 5 temp tables, rollback, role, SQL static check.
 * `tests/saathi-tools.test.ts`: tools only touch the caller's own RSVP and
   wedding, ignore injected ids, and never return phone numbers or host tokens.
-* `tests/control.test.ts`: the control room's numbers (headcounts, pickups,
-  food needs per household, arrivals) come from code, not the model.
+* `tests/control.test.ts`: control room stats and all planning `/apply` proposal kinds.
 * `tests/wedding.test.ts`: draft normalisation (bad model output becomes
   "unknown", never a guess), the readiness rule, slugs and tokens, Agent Skill parsing.
 * Live checks against a running server with real Gemini calls:
@@ -209,19 +214,27 @@ node --import tsx scripts/seed-demo.ts https://<service-url>   # demo wedding + 
 
 ```
 server/          Express API
-  intake.ts        Act 1: card / chat / voice note → structured wedding
-  design.ts        Act 2: art, music, RSVP + note extraction, host dashboard
-  saathi.ts        Act 3: chat with function calling, Live tokens, tool relay
-  insights.ts      Guest-list questions (text-to-SQL sandbox)
-  control.ts       Host control room: agent, confirm-to-apply, briefing
-  gemini.ts        Interactions API wrapper, fallback chains
-  db.ts            AlloyDB (pg) or PGlite, plus the rollback sandbox
-  skills.ts        Agent Skills loader
-web/src/         React app: Create, Studio, Invite, Host, Saathi, live.ts (voice)
-.agents/skills/  Agent Skills (SKILL.md)
+  index.ts       Routes, rate limits, /api/health
+  auth.ts        Accounts, sessions, /api/me/weddings, private-wedding passcode
+  intake.ts      Act 1: card / chat / voice note → structured wedding
+  design.ts      Act 2 & AI Studio: card/ceremony/logo art, music, teaser, WhatsApp writer, RSVP
+  saathi.ts      Act 3: chat with function calling, Live tokens, tool relay
+  insights.ts    Ask Saathi SQL sandbox (guests, events, tasks, vendors, payments)
+  control.ts     Host control room: 12-tool agent, confirm-to-apply, /briefing, /home
+  planning.ts    Your Wedding back office: guests, vendors, budget, payments, tasks, sheets, runsheet
+  import.ts      saathi-import-v1 private wedding importer
+  gemini.ts      Interactions API wrapper, fallback chains
+  db.ts          AlloyDB (pg) or PGlite, plus the rollback sandbox
+  skills.ts      Agent Skills loader
+web/src/         React app: Login, MyWeddings, NewWedding, WeddingShell, WeddingHome,
+                 plan/* (Guests, Vendors, Budget, Tasks, Sheets, Runsheet),
+                 app/* (Invite, RSVPs, Events, Info, Announcements, Rooms, Travel),
+                 studio/* (Invitation, Logo, Messages, Teaser),
+                 components/agent/* (AskSaathiDrawer), Saathi, live.ts (voice)
+.agents/skills/  6 Agent Skills (SKILL.md)
 db/schema.sql    Tables and the saathi_reader role
-tests/           node:test suites
-scripts/         Seed, end-to-end and live checks
+tests/           node:test suites (40 tests)
+scripts/         Seed, import-wedding, smoke, end-to-end and live checks
 ```
 
 ## What's next

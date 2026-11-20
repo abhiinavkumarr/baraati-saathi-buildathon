@@ -138,7 +138,7 @@ export function TravelTab({ slug }: { slug: string }) {
           <p className="muted small">When guests share flight or train details in their RSVP, arrivals appear here automatically.</p>
         </div>
       ) : (
-        <section className="card pl-table-card">
+        <section className="card pl-table-card" tabIndex={0} aria-label="Guest arrivals table">
           <table className="pl-table">
             <thead>
               <tr>

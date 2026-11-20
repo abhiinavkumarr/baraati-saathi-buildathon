@@ -69,16 +69,18 @@ export function Studio({
     URL.revokeObjectURL(a.href);
   }
 
+  const Wrap = embedded ? 'div' : 'main';
+
   if (!hostToken) {
-    return <main className="shell"><h1 className="display">Host link needed</h1><p className="muted">Open this page from the device you created the wedding on, or use your host link.</p></main>;
+    return <Wrap className="shell"><h1 className="display">Host link needed</h1><p className="muted">Open this page from the device you created the wedding on, or use your host link.</p></Wrap>;
   }
-  if (!w) return <main className="shell muted">Loading…</main>;
+  if (!w) return <Wrap className="shell muted">Loading…</Wrap>;
 
   const d = w.draft;
   const waText = encodeURIComponent(`${d.partner1_name} & ${d.partner2_name} would love you to join their wedding 💐\nOpen your invitation and RSVP: ${inviteUrl}`);
 
   return (
-    <main className="studio">
+    <Wrap className="studio">
       {!embedded && (
         <header className="brand">
           <span className="wordmark">Baraati</span> <span className="tag">Saathi</span>
@@ -138,7 +140,7 @@ export function Studio({
           <a className="muted small" href={`/i/${slug}`} target="_blank" rel="noreferrer">Open as a guest ↗</a>
         </section>
       </div>
-    </main>
+    </Wrap>
   );
 }
 

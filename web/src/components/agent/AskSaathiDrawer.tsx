@@ -1,10 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ControlRoom } from './ControlRoom.tsx';
 import { notifySaathiChanged } from '../../WeddingContext.tsx';
 
 export function AskSaathiDrawer({ slug, token }: { slug: string; token: string }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
+  const drawerRef = useRef<HTMLElement>(null);
+  const fabRef = useRef<HTMLButtonElement>(null);
+
+  const closeDrawer = () => {
+    setOpen(false);
+    // Return focus before aria-hidden/inert takes effect so focus never remains inside hidden drawer.
+    fabRef.current?.focus();
+  };
+
+  useEffect(() => {
+    if (drawerRef.current) {
+      drawerRef.current.inert = !open;
+    }
+  }, [open]);
 
   useEffect(() => {
     const onAsk = (e: Event) => {
@@ -13,7 +27,7 @@ export function AskSaathiDrawer({ slug, token }: { slug: string; token: string }
       if (prompt) setPending(prompt);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && open) setOpen(false);
+      if (e.key === 'Escape' && open) closeDrawer();
     };
     window.addEventListener('saathi:ask', onAsk);
     window.addEventListener('keydown', onKey);
@@ -28,9 +42,10 @@ export function AskSaathiDrawer({ slug, token }: { slug: string; token: string }
   return (
     <>
       <button
+        ref={fabRef}
         type="button"
         className="pl-saathi-fab"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => (open ? closeDrawer() : setOpen(true))}
         aria-expanded={open}
         aria-label={open ? 'Close Ask Saathi' : 'Open Ask Saathi'}
       >
@@ -39,10 +54,11 @@ export function AskSaathiDrawer({ slug, token }: { slug: string; token: string }
       </button>
 
       {open && (
-        <div className="drawer-backdrop" onClick={() => setOpen(false)} aria-hidden />
+        <div className="drawer-backdrop" onClick={closeDrawer} aria-hidden />
       )}
 
       <aside
+        ref={drawerRef}
         className={`saathi-drawer ${open ? 'open' : ''}`}
         aria-label="Ask Saathi"
         aria-hidden={!open}
@@ -58,7 +74,7 @@ export function AskSaathiDrawer({ slug, token }: { slug: string; token: string }
           <button
             type="button"
             className="icon-btn"
-            onClick={() => setOpen(false)}
+            onClick={closeDrawer}
             aria-label="Close Ask Saathi drawer"
           >
             ✕

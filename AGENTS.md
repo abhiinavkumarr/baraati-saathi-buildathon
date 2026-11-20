@@ -52,19 +52,25 @@ Google AI usage, security design and tests.
 ```
 server/
   index.ts      routes, rate limits, /api/health (db kind, demo slug)
+  auth.ts       login/session, /api/me/weddings, private-wedding passcode check
   gemini.ts     Interactions API wrapper (apiVersion v1beta), fallback chains
   intake.ts     Act 1: card / chat / voice note → structured wedding
-  design.ts     Act 2: card art, ceremony art (event_art), music, RSVP + note extraction
+  design.ts     Act 2 & Studio: card/ceremony/logo art, music, teaser, WhatsApp writer, RSVP
   saathi.ts     Act 3: guest chat (function calling), Gemini Live tokens + tool relay
-  insights.ts   guest-list questions: text-to-SQL sandbox
-  control.ts    host control room: agent, /apply, /briefing, announcements
+  insights.ts   Ask Saathi SQL sandbox (guests, events, tasks, vendors, payments)
+  control.ts    host control room: 12-tool agent, /apply, /briefing, /home, announcements
+  planning.ts   Your Wedding back office: guests, vendors, budget, payments, tasks, sheets, runsheet, sample seed
+  import.ts     saathi-import-v1 private wedding importer (zero phones, idempotent)
   db.ts         AlloyDB via pg, or embedded PGlite fallback; sandbox()
   skills.ts     loads .agents/skills/*/SKILL.md
-web/src/        React 19 + Vite: pages/Create, Studio, Invite, Host; Saathi.tsx, live.ts (voice)
-.agents/skills/ 5 Agent Skills loaded at runtime (intake, card-designer, concierge, host-control-room, guardrails)
+web/src/        React 19 + Vite: WeddingContext, teaser.ts, Saathi.tsx, live.ts (voice),
+                components/agent/ (ControlRoom, ProposalCard, AskSaathiDrawer),
+                pages/ (Login, MyWeddings, NewWedding, Create, Studio, Invite,
+                        wedding/{WeddingShell, WeddingHome, plan/*, app/*, studio/*})
+.agents/skills/ 6 Agent Skills loaded at runtime (intake, card-designer, concierge, host-control-room, wedding-planner, guardrails)
 db/schema.sql   idempotent schema, runs on every start
 tests/          node:test on in-memory PGlite (no API key needed)
-scripts/        seed-demo, smoke (every flow PASS/FAIL), agent-test, e2e, live-test, probe-models
+scripts/        seed-demo, import-wedding, smoke (every flow PASS/FAIL), agent-test, e2e, live-test, probe-models
 ```
 
 ## Commands
@@ -76,12 +82,13 @@ npm run dev:web             # Vite :5173, proxies /api
 npm run typecheck && npm test && npm run build    # run before every commit
 node --import tsx scripts/smoke.ts                # live check of every flow
 node --import tsx scripts/seed-demo.ts <baseUrl>  # fresh demo wedding + links
+node --import tsx scripts/import-wedding.ts <file> # import private saathi-import-v1 wedding
 ```
 
 Deploy (from **PowerShell**: Git Bash rewrites `/tmp` in env values):
 
 ```powershell
-& "$env:LOCALAPPDATA\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd" run deploy baraati-saathi --source . --region asia-south1 --allow-unauthenticated --min-instances 1 --max-instances 1 --memory 1Gi --cpu 1 --timeout 300 --set-secrets "GEMINI_API_KEY=gemini-api-key:latest,DB_PASSWORD=alloydb-password:latest,OWNER_PASSCODE=owner-passcode:latest" --set-env-vars "PGLITE_DIR=/tmp/pglite,ALLOYDB_INSTANCE_URI=projects/baraati-saathi/locations/asia-south1/clusters/saathi/instances/saathi-primary,ALLOYDB_PROXY_FLAGS=--public-ip,DB_USER=postgres,DB_NAME=postgres,DEMO_SLUG=riya-kabir-edad262c" --quiet
+& "$env:LOCALAPPDATA\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd" run deploy baraati-saathi --source . --region asia-south1 --allow-unauthenticated --min-instances 1 --max-instances 1 --memory 1Gi --cpu 1 --timeout 300 --set-secrets "GEMINI_API_KEY=gemini-api-key:latest,DB_PASSWORD=alloydb-password:latest,OWNER_PASSCODE=owner-passcode:latest" --set-env-vars "PGLITE_DIR=/tmp/pglite,ALLOYDB_INSTANCE_URI=projects/baraati-saathi/locations/asia-south1/clusters/saathi/instances/saathi-primary,ALLOYDB_PROXY_FLAGS=--public-ip,DB_USER=postgres,DB_NAME=postgres,DEMO_SLUG=riya-kabir-6abb94dc" --quiet
 ```
 
 `DEMO_SLUG` is the public sample invitation on the landing page. If you reseed,

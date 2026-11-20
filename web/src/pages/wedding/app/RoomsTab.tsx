@@ -79,7 +79,7 @@ export function RoomsTab({ slug }: { slug: string }) {
       {loading ? (
         <div className="card pl-skeleton" />
       ) : (
-        <section className="card pl-table-card">
+        <section className="card pl-table-card" tabIndex={0} aria-label="Guest hotel rooms table">
           <table className="pl-table">
             <thead>
               <tr>

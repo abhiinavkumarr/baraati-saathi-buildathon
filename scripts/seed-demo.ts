@@ -1,5 +1,7 @@
 // Seed the demo wedding on a running server (local or Cloud Run): a complete
-// Riya & Kabir wedding with info cards, AI artwork, music, 18 RSVPs and two open questions.
+// Riya & Kabir wedding with info cards, AI artwork, music, 18 RSVPs (with sides
+// and groups, no phone numbers), planning data (vendors, budget, payments, tasks,
+// sheet) and two open questions.
 // Prints the Studio, invite and dashboard links. Takes ~40 s (art + music).
 // Usage: node --import tsx scripts/seed-demo.ts https://<service>.run.app
 const base = (process.argv[2] ?? 'http://localhost:8080').replace(/\/$/, '');
@@ -26,7 +28,7 @@ const draft = {
     { question: 'Can kids come?', answer: 'Of course! There is a supervised kids corner at the Sangeet.' },
     { question: 'Gifts?', answer: 'Your blessings are enough. No boxed gifts, please.' },
   ],
-  contact_name: 'Aman (Riya\'s brother)',
+  contact_name: "Aman (Riya's brother)",
   contact_phone: '',
 };
 
@@ -41,38 +43,50 @@ async function call(method: string, path: string, body?: unknown) {
 
 const health = await call('GET', '/api/health');
 console.log('db:', health.db, health.db_note ?? '');
-const { slug, host_token } = await call('POST', '/api/weddings', { draft });
+const { slug, host_token } = await call('POST', '/api/weddings', { draft, host_side: 'bride', expected_guests: 180, hashtag: '#RiyaKabir2027' });
 await Promise.all([
   call('POST', `/api/weddings/${slug}/art`, { host_token, kind: 'card_art' }),
   call('POST', `/api/weddings/${slug}/music`, { host_token }),
   call('POST', `/api/weddings/${slug}/event-art`, { host_token }),
 ]);
+
 // A realistic guest list: arrivals over three days, airport and station
 // pickups, food needs, children, a few maybes and regrets. No phone numbers,
 // so no real person is ever messaged from the demo.
-const guests: [string, 'yes' | 'maybe' | 'no', number, string][] = [
-  ['Nani ji', 'yes', 3, 'Main apni beti aur pote ke saath aa rahi hoon. 12 tareekh ko shaam 5:40 baje Udaipur airport pahunchenge, pickup chahiye. Jain khana please.'],
-  ['Meera Aunty', 'yes', 4, 'Family of four, two kids aged 6 and 9. Train reaches Udaipur City station 7 am on the 12th, need a pickup.'],
-  ['Aditya', 'maybe', 2, 'Driving down from Jaipur with my wife'],
-  ['Priya & Karan', 'yes', 2, 'Landing 11 Feb 1:30 pm, IndiGo from Mumbai. Pickup would be lovely. Karan has a nut allergy.'],
-  ['Sharma Uncle', 'yes', 2, 'Hum dono 11 ko dopahar 2 baje airport aayenge. Pickup chahiye. Shakahari khana.'],
-  ['Rohan', 'yes', 1, 'Flight lands 11 Feb 2:15 pm from Delhi, will need a cab to the hotel'],
-  ['Kavya', 'maybe', 1, 'Trying to get leave, will confirm by next week'],
-  ['Gupta family', 'yes', 5, '3 adults and 2 kids (4 and 7). Arriving by car from Ahmedabad on the 11th evening. Jain food for my mother.'],
-  ['Ananya', 'yes', 1, 'Coming solo! Landing 12 Feb 10 am. Vegan please.'],
-  ['Vikram Bhaiya', 'yes', 3, 'With wife and daughter (5). Flight lands 12 Feb 5:50 pm, pickup chahiye'],
-  ['Dadi ji', 'yes', 2, 'Main aur mera beta. 11 tareekh subah 9 baje Udaipur City station, pickup please. Jain.'],
-  ['Neha', 'no', 1, 'So sorry, exams that week. Sending all my love!'],
-  ['Arjun', 'maybe', 2, 'Might come for the Sangeet and Pheras only'],
-  ['Sethi cousins', 'yes', 4, 'Four of us driving from Delhi, reaching 11 Feb night. Vegetarian x2.'],
-  ['Mrs. Kapoor', 'yes', 2, 'Arriving 12 Feb 11:30 am by flight with my husband. Need wheelchair assistance at the airport and a pickup.'],
-  ['Farhan', 'no', 1, 'Will be abroad, many congratulations!'],
-  ['Simran', 'yes', 2, 'With my husband, landing 12 Feb 5:30 pm from Bangalore. Pickup please.'],
-  ['Tanvi', 'yes', 1, 'Train to Udaipur City 12th morning 6:30'],
+const guests: [string, 'yes' | 'maybe' | 'no', number, string, 'bride' | 'groom', string][] = [
+  ['Nani ji', 'yes', 3, 'Main apni beti aur pote ke saath aa rahi hoon. 12 tareekh ko shaam 5:40 baje Udaipur airport pahunchenge, pickup chahiye. Jain khana please.', 'bride', 'Close Family'],
+  ['Meera Aunty', 'yes', 4, 'Family of four, two kids aged 6 and 9. Train reaches Udaipur City station 7 am on the 12th, need a pickup.', 'bride', 'Close Family'],
+  ['Aditya', 'maybe', 2, 'Driving down from Jaipur with my wife', 'groom', 'College Friends'],
+  ['Priya & Karan', 'yes', 2, 'Landing 11 Feb 1:30 pm, IndiGo from Mumbai. Pickup would be lovely. Karan has a nut allergy.', 'bride', 'College Friends'],
+  ['Sharma Uncle', 'yes', 2, 'Hum dono 11 ko dopahar 2 baje airport aayenge. Pickup chahiye. Shakahari khana.', 'bride', 'Family Friends'],
+  ['Rohan', 'yes', 1, 'Flight lands 11 Feb 2:15 pm from Delhi, will need a cab to the hotel', 'groom', 'College Friends'],
+  ['Kavya', 'maybe', 1, 'Trying to get leave, will confirm by next week', 'bride', 'Office Friends'],
+  ['Gupta family', 'yes', 5, '3 adults and 2 kids (4 and 7). Arriving by car from Ahmedabad on the 11th evening. Jain food for my mother.', 'groom', 'Family Friends'],
+  ['Ananya', 'yes', 1, 'Coming solo! Landing 12 Feb 10 am. Vegan please.', 'bride', 'Office Friends'],
+  ['Vikram Bhaiya', 'yes', 3, 'With wife and daughter (5). Flight lands 12 Feb 5:50 pm, pickup chahiye', 'groom', 'Close Family'],
+  ['Dadi ji', 'yes', 2, 'Main aur mera beta. 11 tareekh subah 9 baje Udaipur City station, pickup please. Jain.', 'groom', 'Close Family'],
+  ['Neha', 'no', 1, 'So sorry, exams that week. Sending all my love!', 'bride', 'College Friends'],
+  ['Arjun', 'maybe', 2, 'Might come for the Sangeet and Pheras only', 'groom', 'Office Friends'],
+  ['Sethi cousins', 'yes', 4, 'Four of us driving from Delhi, reaching 11 Feb night. Vegetarian x2.', 'groom', 'Close Family'],
+  ['Mrs. Kapoor', 'yes', 2, 'Arriving 12 Feb 11:30 am by flight with my husband. Need wheelchair assistance at the airport and a pickup.', 'bride', 'Family Friends'],
+  ['Farhan', 'no', 1, 'Will be abroad, many congratulations!', 'groom', 'College Friends'],
+  ['Simran', 'yes', 2, 'With my husband, landing 12 Feb 5:30 pm from Bangalore. Pickup please.', 'bride', 'Office Friends'],
+  ['Tanvi', 'yes', 1, 'Train to Udaipur City 12th morning 6:30', 'bride', 'College Friends'],
 ];
+
+const metaByName = new Map(guests.map(([name, , , , side, group_name]) => [name, { side, group_name }]));
 for (const [name, status, party_size, note] of guests) {
   await call('POST', `/api/weddings/${slug}/rsvp`, { name, status, party_size, note });
 }
+
+const listed = await call('GET', `/api/host/${slug}/guests?t=${encodeURIComponent(host_token)}`);
+for (const g of listed.guests ?? []) {
+  const meta = metaByName.get(g.name);
+  if (meta) {
+    await call('PATCH', `/api/host/${slug}/guests/${g.id}`, { t: host_token, side: meta.side, group_name: meta.group_name });
+  }
+}
+
 await call('POST', `/api/host/${slug}/seed-sample`, { t: host_token });
 
 // Two questions the schedule can't answer, so the host's inbox isn't empty.
@@ -82,6 +96,7 @@ for (const q of ['Can I bring my dog to the Mehendi?', 'Will there be a mehendi 
 console.log('Waiting for Gemini to read the RSVP notes…');
 await new Promise((r) => setTimeout(r, 25000));
 
-console.log(`\nStudio:    ${base}/studio/${slug}?t=${host_token}`);
+console.log(`\nDEMO_SLUG=${slug}`);
+console.log(`Studio:    ${base}/w/${slug}/studio/invitation?t=${host_token}`);
 console.log(`Invite:    ${base}/i/${slug}`);
-console.log(`Dashboard: ${base}/h/${slug}?t=${host_token}`);
+console.log(`Dashboard: ${base}/w/${slug}?t=${host_token}`);

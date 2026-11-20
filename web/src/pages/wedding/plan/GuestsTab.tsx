@@ -461,7 +461,7 @@ export function GuestsTab({ slug }: { slug: string }) {
         </div>
       ) : (
         <>
-          <div className="card pl-table-card pl-desktop-only">
+          <div className="card pl-table-card pl-desktop-only" tabIndex={0} role="region" aria-label="Guest list table">
             <table className="pl-table">
               <thead>
                 <tr>

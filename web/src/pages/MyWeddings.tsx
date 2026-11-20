@@ -89,7 +89,7 @@ export function MyWeddings() {
                     <span className="pl-logo-fallback" aria-hidden>🔒</span>
                     <span className="badge warn">Private wedding</span>
                   </div>
-                  <h3>Protected wedding</h3>
+                  <h2 className="h3">Protected wedding</h2>
                   <p className="muted small">Enter your owner passcode to unlock this wedding.</p>
                   <form className="pl-unlock-form" onSubmit={(e) => void unlock(w.slug, e)}>
                     <label className="sr-only" htmlFor={`pass-${w.slug}`}>Owner passcode</label>
@@ -123,7 +123,7 @@ export function MyWeddings() {
                     )}
                     {w.private && <span className="badge">Private</span>}
                   </div>
-                  <h3>{w.couple}</h3>
+                  <h2 className="h3">{w.couple}</h2>
                   <p className="muted small">
                     {[
                       w.first_date ? fmtDate(w.first_date, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Dates TBD',
@@ -148,7 +148,7 @@ export function MyWeddings() {
               onClick={() => navigate('/new')}
             >
               <span className="pl-new-plus" aria-hidden>+</span>
-              <h3>Create a wedding</h3>
+              <h2 className="h3">Create a wedding</h2>
               <p className="muted small">Set up your couple details, venue and ceremonies in 3 steps, or upload a card.</p>
             </button>
           </div>

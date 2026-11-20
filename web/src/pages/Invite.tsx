@@ -136,7 +136,8 @@ export function Invite({ slug }: { slug: string }) {
       )}
       {open && !preview && <Petals colors={[t.accent, '#f4a300', '#e8476b', '#fff3d6']} />}
 
-      <section className="hero">
+      <main>
+        <section className="hero">
         <div className="hero-art" />
         <div className="hero-panel reveal in">
           {d.logo_asset_id && (
@@ -238,12 +239,16 @@ export function Invite({ slug }: { slug: string }) {
       </section>
 
       <Rsvp slug={slug} disabled={preview} guestName={guestName} initialToken={resolvedToken} />
-      {open && <Saathi slug={slug} coupleNames={`${d.partner1_name} & ${d.partner2_name}`} />}
-
       {musicUrl && (
         <button className="music-btn" onClick={() => toggleMusic()} aria-label={playing ? 'Pause music' : 'Play music'}>
           {playing ? '❚❚' : '♪'}
         </button>
+      )}
+      </main>
+      {open && (
+        <aside aria-label="Saathi concierge">
+          <Saathi slug={slug} coupleNames={`${d.partner1_name} & ${d.partner2_name}`} />
+        </aside>
       )}
       <RevealOnScroll />
     </div>
